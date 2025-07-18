@@ -21,7 +21,7 @@ try:
     # st.secrets["gcp_service_account"] should contain the content of your JSON key file
     # as a dictionary or a JSON string that can be parsed into a dictionary.
     # We will assume it's stored as a JSON string for robustness.
-    creds_dict = json.loads(st.secrets["gcp_service_account"])
+    creds_dict = st.secrets["gcp_service_account"]
     creds = Credentials.from_service_account_info(creds_dict, scopes=[
         "https://spreadsheets.google.com/feeds",
         "https://www.googleapis.com/auth/drive"
