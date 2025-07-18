@@ -2,56 +2,66 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 import gspread
-from google.oauth2.service_account import Credentials
-import json # Import json to parse credentials from st.secrets
+from google.oauth2.service_account import Credentials # Menggunakan library yang lebih modern
 
-# --- Page Configuration ---
+# --- Konfigurasi Halaman ---
 st.set_page_config(
     page_title="Timesheet METSO",
     page_icon="📝",
     layout="wide"
 )
 
-# --- Google Sheet Configuration for Streamlit Cloud ---
-# Ensure your Google Sheet ID is correctly set
-SHEET_ID = "1BwwoNx3t3MBrsOB3H9BSxnWbYCwChwgl4t1HrpFYWpA" # <-- Double-check this ID!
+# --- Konfigurasi Google Sheet ---
+SHEET_ID = "1BwwoNx3t3MBrsOB3H9BSxnWbYCwGChwgl4t1HrpFYWpA" # <-- PASTIKAN ID SHEET INI BENAR!
 
-# Load credentials from Streamlit secrets
+# Menginisialisasi koneksi ke Google Sheets
 try:
-    # st.secrets["gcp_service_account"] should contain the content of your JSON key file
-    # as a dictionary or a JSON string that can be parsed into a dictionary.
-    # We will assume it's stored as a JSON string for robustness.
-    creds_dict = st.secrets["gcp_service_account"]
+    # Mengambil kredensial dari Streamlit secrets
+    # st.secrets sudah mengurai TOML ke dictionary, jadi tidak perlu json.loads()
+    creds_dict = st.secrets["gcp_service_account"] 
+    
     creds = Credentials.from_service_account_info(creds_dict, scopes=[
         "https://spreadsheets.google.com/feeds",
         "https://www.googleapis.com/auth/drive"
     ])
     client = gspread.authorize(creds)
+    
+    # Membuka worksheet yang dibutuhkan
     sheet_user = client.open_by_key(SHEET_ID).worksheet("user")
     sheet_presensi = client.open_by_key(SHEET_ID).worksheet("presensi")
+
 except KeyError:
     st.error(
-        "**Error:** Google service account credentials not found in Streamlit secrets. "
-        "Please ensure `gcp_service_account` is correctly configured in your app's secrets."
+        "**Error Konfigurasi:** Kredensial akun layanan Google tidak ditemukan di Streamlit secrets. "
+        "Pastikan `gcp_service_account` dikonfigurasi dengan benar di secrets aplikasi Anda."
     )
     st.stop()
 except gspread.exceptions.SpreadsheetNotFound:
     st.error(
-        "**Error:** Spreadsheet not found. "
-        "Please double-check the `SHEET_ID` in your code. "
-        "Also, ensure your service account (email in credential.json) has Editor access to this Google Sheet."
+        "**Error Spreadsheet:** Spreadsheet tidak ditemukan. "
+        "Mohon periksa kembali `SHEET_ID` di kode Anda. "
+        "Juga, pastikan akun layanan Anda (email di `client_email` secrets) memiliki akses Editor ke Google Sheet ini."
     )
     st.stop()
 except Exception as e:
-    st.error(f"**Google Sheets connection error:** {e}. "
-             "Please check your internet connection or Google API status."
-             "If it's a 503 error, try refreshing the app in a few moments.")
+    st.error(f"**Error Koneksi Google Sheets:** {e}. "
+             "Mohon periksa koneksi internet Anda atau status Google API. "
+             "Jika ini error 503, coba refresh aplikasi dalam beberapa saat.")
     st.stop()
 
+# --- Fungsi Pembantu ---
+@st.cache_data(ttl="1h") # Cache data pengguna untuk performa
+def get_user_data():
+    """Mengambil semua record dari sheet 'user'."""
+    return pd.DataFrame(sheet_user.get_all_records())
 
-# --- Helper Functions ---
+@st.cache_data(ttl="1h") # Cache data presensi
+def get_presensi_data():
+    """Mengambil semua record dari sheet 'presensi'."""
+    return pd.DataFrame(sheet_presensi.get_all_records())
+
 def check_login(user_id, password):
-    df = pd.DataFrame(sheet_user.get_all_records())
+    df = get_user_data()
     user = df[(df['Id'].astype(str) == str(user_id)) & (df['Password'] == password)]
     return user.iloc[0] if not user.empty else None
 
@@ -61,65 +71,67 @@ def get_day_name(date_obj):
 def get_date_range(start, end):
     return pd.date_range(start=start, end=end).to_list()
 
-# --- Functions for User Settings ---
 def update_user_data_in_sheet(user_id, column_name, new_value):
-    """Updates a specific column for a user in the 'user' Google Sheet."""
-    df_users = pd.DataFrame(sheet_user.get_all_records())
+    """Memperbarui kolom spesifik untuk user di Google Sheet 'user'."""
+    df_users = get_user_data() # Ambil data terbaru
     try:
-        # Find the row index (0-based) in the DataFrame
+        # Cari indeks baris (0-based) di DataFrame
         df_row_index = df_users[df_users['Id'].astype(str) == str(user_id)].index[0]
         
-        # gspread uses 1-based indexing for rows and columns
-        # Get the column index (1-based) from the header
-        header = sheet_user.row_values(1) # Get first row (headers)
+        # gspread menggunakan indexing 1-based untuk baris dan kolom
+        # Dapatkan indeks kolom (1-based) dari header
+        header = sheet_user.row_values(1) # Ambil baris pertama (headers)
         if column_name not in header:
-            st.error(f"Error: Column '{column_name}' not found in 'user' sheet headers.")
+            st.error(f"Error: Kolom '{column_name}' tidak ditemukan di header sheet 'user'.")
             return False
 
-        col_index = header.index(column_name) + 1 # +1 for 1-based indexing
-        gsheet_row = df_row_index + 2 # +1 for 1-based index, +1 because headers are row 1
+        col_index = header.index(column_name) + 1 # +1 untuk indexing 1-based
+        gsheet_row = df_row_index + 2 # +1 untuk indexing 1-based, +1 karena header di baris 1
 
         sheet_user.update_cell(gsheet_row, col_index, new_value)
+        # Hapus cache data user agar data terbaru diambil saat fungsi get_user_data dipanggil lagi
+        get_user_data.clear() 
         return True
     except IndexError:
-        st.error(f"User with ID {user_id} not found in the 'user' sheet.")
+        st.error(f"Pengguna dengan ID {user_id} tidak ditemukan di sheet 'user'.")
         return False
     except Exception as e:
-        st.error(f"Failed to update {column_name}: {e}")
+        st.error(f"Gagal memperbarui {column_name}: {e}")
         return False
 
-# --- Session State for Login ---
+# --- Session State untuk Login ---
 if "user" not in st.session_state:
     st.session_state.user = None
 
-# --- App Title ---
-st.image("logo login.png", width=250)
+# --- Judul Aplikasi ---
+# st.image("logo login.png", width=250) # Pastikan file gambar ini ada di repositori
+st.title("Timesheet METSO") # Menggunakan judul teks jika gambar tidak ada/tidak diperlukan
 
-# --- Login Section ---
+# --- Bagian Login ---
 if st.session_state.user is None:
-    st.subheader("🔐 Login to Access Timesheet")
+    st.subheader("🔐 Login untuk Akses Timesheet")
     user_id = st.text_input("User ID")
     password = st.text_input("Password", type="password")
     if st.button("Login"):
         user = check_login(user_id, password)
         if user is not None:
             st.session_state.user = user
-            st.success("Login successful!")
+            st.success("Login berhasil!")
             st.rerun()
         else:
-            st.error("❌ Incorrect User ID or Password")
-    st.stop()
+            st.error("❌ User ID atau Password salah")
+    st.stop() # Hentikan eksekusi jika belum login
 
-# --- Sidebar Info Area ---
+# --- Area Info Sidebar ---
 st.sidebar.title("📍 Info Area")
-st.sidebar.write("👤 Logged in as:", st.session_state.user["Username"])
-st.sidebar.write("💼 Role:", st.session_state.user["Role"])
+st.sidebar.write("👤 Login sebagai:", st.session_state.user["Username"])
+st.sidebar.write("💼 Peran:", st.session_state.user["Role"])
 st.sidebar.write("🎓 Grade:", st.session_state.user["Grade"])
 
 st.sidebar.markdown("---")
 
 st.sidebar.markdown("""
-**Area Codes:**
+**Kode Area:**
 - **GCP** / **SAP**: Acid Plant
 - **ER**: Electro Refinery
 - **ET**: ETP Effluent Treatment Plant
@@ -131,45 +143,43 @@ if st.sidebar.button("Logout"):
     st.session_state.user = None
     st.rerun()
 
-# --- Tab Layout ---
-tab1, tab2, tab3 = st.tabs(["📝 Timesheet Form", "📊 Activity Log", "⚙️ User Settings"]) # Added tab3
+# --- Tata Letak Tab ---
+tab1, tab2, tab3 = st.tabs(["📝 Form Timesheet", "📊 Log Aktivitas", "⚙️ Pengaturan Pengguna"])
 
-# --- Timesheet Tab ---
+# --- Tab Timesheet ---
 with tab1:
-    st.header("📝 Online Timesheet Form")
+    st.header("📝 Form Timesheet Online")
     today = datetime.today()
     
     col_start_date, col_end_date = st.columns(2)
     
     with col_start_date:
-        start_date = st.date_input("Start Date", today - timedelta(days=6))
+        start_date = st.date_input("Tanggal Mulai", today - timedelta(days=6))
     
     with col_end_date:
-        end_date = st.date_input("End Date", today)
+        end_date = st.date_input("Tanggal Selesai", today)
 
     date_list = get_date_range(start_date, end_date)
-    st.markdown(f"**Date Range:** {start_date.strftime('%d-%b-%Y')} ➜ {end_date.strftime('%d-%b-%Y')}")
+    st.markdown(f"**Rentang Tanggal:** {start_date.strftime('%d-%b-%Y')} ➜ {end_date.strftime('%d-%b-%Y')}")
 
     shift_opts = ["Day Shift", "Night Shift", "Noon Shift"]
     
-    # Define all possible area options
+    # Definisikan semua opsi area yang mungkin
     all_area_opts = ["GCP", "ER", "ET", "SC", "SM", "SAP"]
 
-    # Get user's preferred area order, if set. Otherwise, use default.
-    # Ensure 'Preferred Areas' column exists in your 'user' sheet!
+    # Dapatkan urutan area pilihan pengguna, jika diatur. Jika tidak, gunakan default.
     user_preferred_areas_str = st.session_state.user.get("Preferred Areas", "")
     if user_preferred_areas_str:
-        # Convert string "Area1,Area2" to list ["Area1", "Area2"]
+        # Konversi string "Area1,Area2" menjadi list ["Area1", "Area2"]
         preferred_areas_list = [a.strip() for a in user_preferred_areas_str.split(',') if a.strip()]
         
-        # Create final area_opts by putting preferred areas first, then remaining
-        # Ensure no duplicates and all are valid from all_area_opts
+        # Buat area_opts akhir dengan menempatkan area pilihan di depan, lalu sisanya
         area_opts = [area for area in preferred_areas_list if area in all_area_opts]
         for area in all_area_opts:
             if area not in area_opts:
                 area_opts.append(area)
     else:
-        area_opts = all_area_opts # Default order
+        area_opts = all_area_opts # Urutan default
 
     initial_data = []
     for date in date_list:
@@ -178,7 +188,7 @@ with tab1:
             "Day": get_day_name(date),
             "Hours": 0.0,
             "Overtime": 0.0,
-            "Area 1": area_opts[0] if area_opts else "", # Use the first preferred area as default
+            "Area 1": area_opts[0] if area_opts else "", # Gunakan area pilihan pertama sebagai default
             "Area 2": "",    
             "Area 3": "",    
             "Area 4": "",    
@@ -188,20 +198,20 @@ with tab1:
 
     df_presensi_input = pd.DataFrame(initial_data)
 
-    st.subheader("Enter Timesheet Details")
+    st.subheader("Masukkan Detail Timesheet")
     edited_df = st.data_editor(
         df_presensi_input,
         column_config={
-            "Date": st.column_config.Column("Date", help="Date of timesheet entry", disabled=True),
-            "Day": st.column_config.Column("Day", help="Day of the week", disabled=True),
-            "Hours": st.column_config.NumberColumn("Working Hours", min_value=0.0, step=0.5, format="%.1f", help="Total working hours"),
-            "Overtime": st.column_config.NumberColumn("Overtime Hours", min_value=0.0, step=0.5, format="%.1f", help="Total overtime hours"),
-            "Area 1": st.column_config.SelectboxColumn("Area 1", options=area_opts, required=True, default=area_opts[0] if area_opts else ""), # Updated options and default
-            "Area 2": st.column_config.SelectboxColumn("Area 2", options=[""] + area_opts, required=False, default="", help="Additional work area (optional)"),
-            "Area 3": st.column_config.SelectboxColumn("Area 3", options=[""] + area_opts, required=False, default="", help="Additional work area (optional)"),
-            "Area 4": st.column_config.SelectboxColumn("Area 4", options=[""] + area_opts, required=False, default="", help="Additional work area (optional)"),
+            "Date": st.column_config.Column("Tanggal", help="Tanggal entri timesheet", disabled=True),
+            "Day": st.column_config.Column("Hari", help="Hari dalam seminggu", disabled=True),
+            "Hours": st.column_config.NumberColumn("Jam Kerja", min_value=0.0, step=0.5, format="%.1f", help="Total jam kerja"),
+            "Overtime": st.column_config.NumberColumn("Jam Lembur", min_value=0.0, step=0.5, format="%.1f", help="Total jam lembur"),
+            "Area 1": st.column_config.SelectboxColumn("Area 1", options=area_opts, required=True, default=area_opts[0] if area_opts else ""),
+            "Area 2": st.column_config.SelectboxColumn("Area 2", options=[""] + area_opts, required=False, default="", help="Area kerja tambahan (opsional)"),
+            "Area 3": st.column_config.SelectboxColumn("Area 3", options=[""] + area_opts, required=False, default="", help="Area kerja tambahan (opsional)"),
+            "Area 4": st.column_config.SelectboxColumn("Area 4", options=[""] + area_opts, required=False, default="", help="Area kerja tambahan (opsional)"),
             "Shift": st.column_config.SelectboxColumn("Shift", options=shift_opts, required=True, default="Day Shift"),
-            "Remark": st.column_config.TextColumn("Remarks", help="E.g., Day off / Travel"),
+            "Remark": st.column_config.TextColumn("Keterangan", help="Contoh: Libur / Perjalanan"),
         },
         column_order=[
             "Date", "Day", "Hours", "Overtime", "Area 1", "Shift", "Remark",
@@ -212,7 +222,7 @@ with tab1:
         use_container_width=True
     )
 
-    if st.button("📤 Submit Timesheet"):
+    if st.button("📤 Kirim Timesheet"):
         final_data_to_submit = []
 
         for index, row in edited_df.iterrows():
@@ -239,30 +249,32 @@ with tab1:
 
         try:
             sheet_presensi.append_rows(final_data_to_submit)
-            st.success("✅ Timesheet successfully submitted!")
+            st.success("✅ Timesheet berhasil dikirim!")
+            get_presensi_data.clear() # Hapus cache data presensi
+            st.rerun() # Muat ulang untuk menampilkan data terbaru
         except Exception as e:
-            st.error(f"Error submitting timesheet: {e}")
+            st.error(f"Error mengirim timesheet: {e}")
 
-# --- Activity Log Tab (For All Users) ---
+# --- Tab Log Aktivitas (Untuk Semua Pengguna) ---
 with tab2:
-    st.header("📊 All Users Activity Log")
+    st.header("📊 Log Aktivitas Semua Pengguna")
 
     col_log_start, col_log_end = st.columns(2)
     
     with col_log_start:
-        log_start_date = st.date_input("Log Start Date", datetime.today() - timedelta(days=7), key="all_log_start_date")
+        log_start_date = st.date_input("Tanggal Mulai Log", datetime.today() - timedelta(days=7), key="all_log_start_date")
     
     with col_log_end:
-        log_end_date = st.date_input("Log End Date", datetime.today(), key="all_log_end_date")
+        log_end_date = st.date_input("Tanggal Selesai Log", datetime.today(), key="all_log_end_date")
 
-    df_log_all = pd.DataFrame(sheet_presensi.get_all_records())
+    df_log_all = get_presensi_data() # Ambil data terbaru dari cache
 
-    if 'Date' in df_log_all.columns:
+    if not df_log_all.empty and 'Date' in df_log_all.columns:
         df_log_all['Date'] = pd.to_datetime(df_log_all['Date'], errors='coerce')
         df_filtered_all_log = df_log_all[(df_log_all['Date'] >= pd.to_datetime(log_start_date)) &
                                          (df_log_all['Date'] <= pd.to_datetime(log_end_date))]
     else:
-        st.warning("Column 'Date' not found in 'presensi' sheet for filtering. Displaying all available log data.")
+        st.warning("Kolom 'Date' tidak ditemukan di sheet 'presensi' atau data kosong. Menampilkan semua data log yang tersedia.")
         df_filtered_all_log = df_log_all.copy()
 
     columns_to_display_all = [
@@ -283,86 +295,89 @@ with tab2:
         use_container_width=True
     )
 
-# --- User Settings Tab ---
+# --- Tab Pengaturan Pengguna ---
 with tab3:
-    st.header("⚙️ User Settings")
-    st.markdown("Here you can manage your account preferences.")
+    st.header("⚙️ Pengaturan Pengguna")
+    st.markdown("Di sini Anda dapat mengelola preferensi akun Anda.")
 
     current_user_id = st.session_state.user["Id"]
     current_username = st.session_state.user["Username"]
-    current_password_hashed = st.session_state.user["Password"] # This is the current stored password
+    current_password_stored = st.session_state.user["Password"] 
 
-    st.subheader("Change Password")
+    st.subheader("Ganti Password")
     with st.form("change_password_form", clear_on_submit=True):
-        old_password = st.text_input("Current Password", type="password")
-        new_password = st.text_input("New Password", type="password", key="new_pass")
-        confirm_new_password = st.text_input("Confirm New Password", type="password", key="confirm_new_pass")
-        submit_password_change = st.form_submit_button("Update Password")
+        old_password = st.text_input("Password Saat Ini", type="password")
+        new_password = st.text_input("Password Baru", type="password", key="new_pass")
+        confirm_new_password = st.text_input("Konfirmasi Password Baru", type="password", key="confirm_new_pass")
+        submit_password_change = st.form_submit_button("Perbarui Password")
 
         if submit_password_change:
-            if old_password != current_password_hashed:
-                st.error("❌ Current password incorrect.")
+            if old_password != current_password_stored:
+                st.error("❌ Password saat ini salah.")
             elif new_password != confirm_new_password:
-                st.error("❌ New passwords do not match.")
+                st.error("❌ Password baru tidak cocok.")
             elif new_password == old_password:
-                st.warning("⚠️ New password cannot be the same as the old password.")
+                st.warning("⚠️ Password baru tidak boleh sama dengan password lama.")
             elif not new_password:
-                st.warning("⚠️ New password cannot be empty.")
+                st.warning("⚠️ Password baru tidak boleh kosong.")
             else:
                 if update_user_data_in_sheet(current_user_id, "Password", new_password):
-                    st.session_state.user["Password"] = new_password
-                    st.success("✅ Password updated successfully! Please re-login for changes to take full effect.")
+                    st.session_state.user["Password"] = new_password # Update session state
+                    st.success("✅ Password berhasil diperbarui! Mohon login kembali untuk perubahan penuh.")
+                    # Setelah mengubah password, sebaiknya pengguna diarahkan untuk logout
+                    st.session_state.user = None
+                    st.rerun()
                 else:
-                    st.error("Something went wrong during password update. Please try again.")
+                    st.error("Ada masalah saat memperbarui password. Mohon coba lagi.")
 
-    st.subheader("Change Username")
+    st.subheader("Ganti Username")
     with st.form("change_username_form", clear_on_submit=True):
-        new_username = st.text_input("New Username", value=current_username)
-        submit_username_change = st.form_submit_button("Update Username")
+        new_username = st.text_input("Username Baru", value=current_username)
+        submit_username_change = st.form_submit_button("Perbarui Username")
 
         if submit_username_change:
             if new_username and new_username != current_username:
                 if update_user_data_in_sheet(current_user_id, "Username", new_username):
-                    st.session_state.user["Username"] = new_username
-                    st.success(f"✅ Username updated to '{new_username}' successfully!")
+                    st.session_state.user["Username"] = new_username # Update session state
+                    st.success(f"✅ Username berhasil diperbarui menjadi '{new_username}'!")
                     st.rerun()
                 else:
-                    st.error("Something went wrong during username update. Please try again.")
+                    st.error("Ada masalah saat memperbarui username. Mohon coba lagi.")
             elif new_username == current_username:
-                st.info("💡 Username is already the same. No change needed.")
+                st.info("💡 Username sudah sama. Tidak ada perubahan yang diperlukan.")
             else:
-                st.warning("⚠️ Username cannot be empty.")
+                st.warning("⚠️ Username tidak boleh kosong.")
 
-    st.subheader("Set Priority Areas")
+    st.subheader("Atur Area Prioritas")
     all_area_opts = ["GCP", "ER", "ET", "SC", "SM", "SAP"]
 
     current_preferred_areas_str = st.session_state.user.get("Preferred Areas", "")
     current_preferred_areas_list = [a.strip() for a in current_preferred_areas_str.split(',') if a.strip()]
     
+    # Pastikan area yang sudah ada valid
     current_preferred_areas_list = [area for area in current_preferred_areas_list if area in all_area_opts]
 
     with st.form("set_priority_areas_form", clear_on_submit=False):
         selected_areas = st.multiselect(
-            "Select and order your frequently used areas (drag to reorder):",
+            "Pilih dan urutkan area yang sering Anda gunakan (seret untuk menyusun ulang):",
             options=all_area_opts,
             default=current_preferred_areas_list,
-            help="The order you select here will determine the default order in the Timesheet form's 'Area 1' dropdown."
+            help="Urutan yang Anda pilih di sini akan menentukan urutan default di dropdown 'Area 1' pada form Timesheet."
         )
-        submit_priority_areas = st.form_submit_button("Save Priority Areas")
+        submit_priority_areas = st.form_submit_button("Simpan Area Prioritas")
 
         if submit_priority_areas:
             new_preferred_areas_str = ", ".join(selected_areas)
             if update_user_data_in_sheet(current_user_id, "Preferred Areas", new_preferred_areas_str):
-                st.session_state.user["Preferred Areas"] = new_preferred_areas_str
-                st.success("✅ Priority Areas saved successfully!")
+                st.session_state.user["Preferred Areas"] = new_preferred_areas_str # Update session state
+                st.success("✅ Area Prioritas berhasil disimpan!")
                 st.rerun()
             else:
-                st.error("Something went wrong during saving priority areas. Please try again.")
+                st.error("Ada masalah saat menyimpan area prioritas. Mohon coba lagi.")
 
-
-# --- Developer Credits ---
+# --- Kredit Pengembang ---
 st.markdown("---")
 st.markdown(
-    "<p align='center'>This application was developed by <b>Galih Primananda</b> and <b>Iqlima Nur Hayati</b>, 2025.</p>",
+    "<p align='center'>Aplikasi ini dikembangkan oleh <b>Galih Primananda</b> dan <b>Iqlima Nur Hayati</b>, 2025.</p>",
     unsafe_allow_html=True
 )
