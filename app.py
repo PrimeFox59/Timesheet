@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import gspread
 from google.oauth2.service_account import Credentials
+import bcrypt # Import bcrypt
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -25,8 +26,6 @@ SHEET_ID = "1BwwoNx3t3MBrsOB3H9BSxnWbYCwChwgl4t1HrpFYWpA"
 def get_google_sheet_client(sheet_id):
     try:
         client = gspread.authorize(creds)
-        # Instead of directly returning worksheet objects, we'll store their titles
-        # The actual worksheet objects will be retrieved when data is needed.
         sheet_user_obj = client.open_by_key(sheet_id).worksheet("user")
         sheet_presensi_obj = client.open_by_key(sheet_id).worksheet("presensi")
         
@@ -45,30 +44,45 @@ def get_google_sheet_client(sheet_id):
                  "If it's a 503 error, try refreshing the app in a few moments.")
         st.stop()
 
-# Now, client is the gspread client, and sheet_user_title/sheet_presensi_title are strings
 client, sheet_user_title, sheet_presensi_title = get_google_sheet_client(SHEET_ID)
 
 
-# Menggunakan st.cache_data untuk membaca data dari Google Sheet
-# Sekarang fungsi ini menerima sheet_id dan sheet_title (keduanya hashable)
 @st.cache_data(ttl=600) # Cache data for 10 minutes (600 seconds)
 def get_data_from_sheet(spreadsheet_id, worksheet_title):
     try:
-        # Re-open the spreadsheet and get the specific worksheet object inside the cached function
-        # This ensures we are always working with a fresh worksheet object if the cache is missed.
         worksheet = client.open_by_key(spreadsheet_id).worksheet(worksheet_title)
         return pd.DataFrame(worksheet.get_all_records())
     except Exception as e:
         st.error(f"Error fetching data from sheet '{worksheet_title}': {e}")
-        return pd.DataFrame() # Return empty DataFrame on error
+        return pd.DataFrame()
 
 
 # --- Helper Functions ---
 def check_login(user_id, password):
-    # Pass sheet_user_title and SHEET_ID
-    df = get_data_from_sheet(SHEET_ID, sheet_user_title)
-    user = df[(df['Id'].astype(str) == str(user_id)) & (df['Password'] == password)]
-    return user.iloc[0] if not user.empty else None
+    df_users = get_data_from_sheet(SHEET_ID, sheet_user_title) # Get user data
+    
+    # Find the user by ID
+    user_row = df_users[df_users['Id'].astype(str) == str(user_id)]
+    
+    if user_row.empty:
+        return None # User not found
+
+    stored_hash = user_row.iloc[0]['Password'].encode('utf-8')
+    
+    # Verify the password using bcrypt
+    # Check if the stored_hash is a valid bcrypt hash before comparing
+    if stored_hash.startswith(b'$2a$') or stored_hash.startswith(b'$2b$') or stored_hash.startswith(b'$2y$'):
+        if bcrypt.checkpw(password.encode('utf-8'), stored_hash):
+            return user_row.iloc[0]
+        else:
+            return None # Password mismatch
+    else:
+        # Fallback for old plain text passwords (remove this after all passwords are hashed)
+        if password == user_row.iloc[0]['Password']:
+            return user_row.iloc[0]
+        else:
+            return None # Password mismatch
+
 
 def get_day_name(date_obj):
     return date_obj.strftime("%A")
@@ -77,15 +91,9 @@ def get_date_range(start, end):
     return pd.date_range(start=start, end=end).to_list()
 
 # --- Functions for User Settings ---
-# Fungsi update_user_data_in_sheet ini tidak bisa di-cache karena melakukan operasi penulisan.
-# Namun, setelah update, kita perlu membersihkan cache untuk 'sheet_user' agar data terbaru diambil.
 def update_user_data_in_sheet(user_id, column_name, new_value):
     """Updates a specific column for a user in the 'user' Google Sheet."""
-    # We need the actual worksheet object for writing
     sheet_user_actual = client.open_by_key(SHEET_ID).worksheet(sheet_user_title)
-    
-    # Pastikan untuk mengambil data terbaru saat melakukan update, jangan pakai cache di sini
-    # We still need a fresh DataFrame to find the row index
     df_users = pd.DataFrame(sheet_user_actual.get_all_records()) 
     try:
         df_row_index = df_users[df_users['Id'].astype(str) == str(user_id)].index[0]
@@ -97,7 +105,12 @@ def update_user_data_in_sheet(user_id, column_name, new_value):
         col_index = header.index(column_name) + 1
         gsheet_row = df_row_index + 2
 
-        sheet_user_actual.update_cell(gsheet_row, col_index, new_value)
+        # Hash password if updating the 'Password' column
+        if column_name == "Password":
+            hashed_password = bcrypt.hashpw(new_value.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            sheet_user_actual.update_cell(gsheet_row, col_index, hashed_password)
+        else:
+            sheet_user_actual.update_cell(gsheet_row, col_index, new_value)
         
         # Invalidate the cache for user data after an update
         get_data_from_sheet.clear() 
@@ -112,6 +125,9 @@ def update_user_data_in_sheet(user_id, column_name, new_value):
 # --- Session State for Login ---
 if "user" not in st.session_state:
     st.session_state.user = None
+if "logged_out_after_password_change" not in st.session_state:
+    st.session_state.logged_out_after_password_change = False
+
 
 # --- App Title ---
 st.image("logo login.png", width=250)
@@ -119,6 +135,12 @@ st.image("logo login.png", width=250)
 # --- Login Section ---
 if st.session_state.user is None:
     st.subheader("🔐 Login to Access Timesheet")
+    
+    # Jika baru saja logout setelah ganti password, tampilkan pesan
+    if st.session_state.logged_out_after_password_change:
+        st.info("Your password has been changed. Please log in with your new password.")
+        st.session_state.logged_out_after_password_change = False # Reset flag
+
     user_id = st.text_input("User ID")
     password = st.text_input("Password", type="password")
     if st.button("Login"):
@@ -130,6 +152,7 @@ if st.session_state.user is None:
         else:
             st.error("❌ Incorrect User ID or Password")
     st.stop()
+
 
 # --- Sidebar Info Area ---
 st.sidebar.title("📍 Info Area")
@@ -150,7 +173,9 @@ st.sidebar.markdown("""
 
 if st.sidebar.button("Logout"):
     st.session_state.user = None
-    st.rerun()
+    # No need to rerun immediately after logout for password change scenario
+    # It will automatically go to the login screen due to the if condition at the top
+    st.rerun() # Ensure the login page loads
 
 # --- Tab Layout ---
 tab1, tab2, tab3 = st.tabs(["📝 Timesheet Form", "📊 Activity Log", "⚙️ User Settings"])
@@ -252,10 +277,8 @@ with tab1:
             ])
 
         try:
-            # We need the actual worksheet object for writing
             sheet_presensi_actual = client.open_by_key(SHEET_ID).worksheet(sheet_presensi_title)
             sheet_presensi_actual.append_rows(final_data_to_submit)
-            # Invalidate the cache for presensi data after an update
             get_data_from_sheet.clear() 
             st.success("✅ Timesheet successfully submitted!")
         except Exception as e:
@@ -273,7 +296,6 @@ with tab2:
     with col_log_end:
         log_end_date = st.date_input("Log End Date", datetime.today(), key="all_log_end_date")
 
-    # Mengambil data dari cache dengan passing ID spreadsheet dan title worksheet
     df_log_all = get_data_from_sheet(SHEET_ID, sheet_presensi_title)
 
     if 'Date' in df_log_all.columns:
@@ -284,7 +306,6 @@ with tab2:
         st.warning("Column 'Date' not found in 'presensi' sheet for filtering. Displaying all available log data.")
         df_filtered_all_log = df_log_all.copy()
 
-    # --- New Filters for Activity Log ---
     st.subheader("Filter Activity Log")
     col_filter_user, col_filter_shift, col_filter_area = st.columns(3)
 
@@ -344,7 +365,9 @@ with tab3:
 
     current_user_id = st.session_state.user["Id"]
     current_username = st.session_state.user["Username"]
-    current_password_hashed = st.session_state.user["Password"]
+    
+    # Do NOT retrieve current_password_hashed directly from st.session_state.user
+    # Instead, we will verify old password directly using bcrypt
 
     st.subheader("Change Password")
     with st.form("change_password_form", clear_on_submit=True):
@@ -354,20 +377,31 @@ with tab3:
         submit_password_change = st.form_submit_button("Update Password")
 
         if submit_password_change:
-            if old_password != current_password_hashed:
-                st.error("❌ Current password incorrect.")
-            elif new_password != confirm_new_password:
-                st.error("❌ New passwords do not match.")
-            elif new_password == old_password:
-                st.warning("⚠️ New password cannot be the same as the old password.")
-            elif not new_password:
-                st.warning("⚠️ New password cannot be empty.")
+            # Re-fetch user data to get the latest hash for comparison
+            df_users_latest = get_data_from_sheet(SHEET_ID, sheet_user_title)
+            user_row_latest = df_users_latest[df_users_latest['Id'].astype(str) == str(current_user_id)]
+            
+            if user_row_latest.empty:
+                st.error("User not found for password change. Please try logging in again.")
             else:
-                if update_user_data_in_sheet(current_user_id, "Password", new_password):
-                    st.session_state.user["Password"] = new_password
-                    st.success("✅ Password updated successfully! Please re-login for changes to take full effect.")
+                stored_hash_latest = user_row_latest.iloc[0]['Password'].encode('utf-8')
+                
+                # Verify old password using bcrypt
+                if not (stored_hash_latest.startswith(b'$2a$') or stored_hash_latest.startswith(b'$2b$') or stored_hash_latest.startswith(b'$2y$')) or not bcrypt.checkpw(old_password.encode('utf-8'), stored_hash_latest):
+                    st.error("❌ Current password incorrect.")
+                elif new_password != confirm_new_password:
+                    st.error("❌ New passwords do not match.")
+                elif not new_password: # Check for empty new password
+                    st.warning("⚠️ New password cannot be empty.")
                 else:
-                    st.error("Something went wrong during password update. Please try again.")
+                    if update_user_data_in_sheet(current_user_id, "Password", new_password):
+                        # After successful password update, invalidate session and set a flag
+                        st.session_state.user = None
+                        st.session_state.logged_out_after_password_change = True
+                        st.success("✅ Password updated successfully! Please re-login with your new password.")
+                        st.rerun()
+                    else:
+                        st.error("Something went wrong during password update. Please try again.")
 
     st.subheader("Change Username")
     with st.form("change_username_form", clear_on_submit=True):
