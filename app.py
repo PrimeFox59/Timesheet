@@ -26,28 +26,43 @@ creds = Credentials.from_service_account_info(key_dict, scopes=scope)
 # ID Google Sheet
 SHEET_ID = "1BwwoNx3t3MBrsOB3H9BSxnWbYCwChwgl4t1HrpFYWpA"
 
-# Koneksi ke Google Sheets
-try:
-    client = gspread.authorize(creds)
-    sheet_user = client.open_by_key(SHEET_ID).worksheet("user")
-    sheet_presensi = client.open_by_key(SHEET_ID).worksheet("presensi")
-except gspread.exceptions.SpreadsheetNotFound:
-    st.error(
-        "**Error:** Spreadsheet not found. "
-        "Please double-check the `SHEET_ID` in your code. "
-        "Also, ensure your service account (email in credential) has Editor access to this Google Sheet."
-    )
-    st.stop()
-except Exception as e:
-    st.error(f"**Google Sheets connection error:** {e}. "
-             "Please check your internet connection or Google API status."
-             "If it's a 503 error, try refreshing the app in a few moments.")
-    st.stop()
+# Menggunakan st.cache_resource untuk koneksi gspread
+# st.cache_resource akan menyimpan objek koneksi (client) dan worksheet
+# sehingga tidak perlu re-authorize atau membuka sheet setiap kali rerun
+@st.cache_resource(ttl=3600) # Cache connection for 1 hour (3600 seconds)
+def get_google_sheet_client(credentials, sheet_id):
+    try:
+        client = gspread.authorize(credentials)
+        sheet_user_obj = client.open_by_key(sheet_id).worksheet("user")
+        sheet_presensi_obj = client.open_by_key(sheet_id).worksheet("presensi")
+        return client, sheet_user_obj, sheet_presensi_obj
+    except gspread.exceptions.SpreadsheetNotFound:
+        st.error(
+            "**Error:** Spreadsheet not found. "
+            "Please double-check the `SHEET_ID` in your code. "
+            "Also, ensure your service account (email in credential) has Editor access to this Google Sheet."
+        )
+        st.stop()
+    except Exception as e:
+        st.error(f"**Google Sheets connection error:** {e}. "
+                 "Please check your internet connection or Google API status."
+                 "If it's a 503 error, try refreshing the app in a few moments.")
+        st.stop()
+
+client, sheet_user, sheet_presensi = get_google_sheet_client(creds, SHEET_ID)
+
+
+# Menggunakan st.cache_data untuk membaca data dari Google Sheet
+# st.cache_data akan menyimpan DataFrame yang dihasilkan
+# dan akan di-re-run hanya jika input (worksheet itu sendiri) berubah
+@st.cache_data(ttl=600) # Cache data for 10 minutes (600 seconds)
+def get_data_from_sheet(sheet_object):
+    return pd.DataFrame(sheet_object.get_all_records())
 
 
 # --- Helper Functions ---
 def check_login(user_id, password):
-    df = pd.DataFrame(sheet_user.get_all_records())
+    df = get_data_from_sheet(sheet_user) # Menggunakan fungsi cache
     user = df[(df['Id'].astype(str) == str(user_id)) & (df['Password'] == password)]
     return user.iloc[0] if not user.empty else None
 
@@ -58,24 +73,27 @@ def get_date_range(start, end):
     return pd.date_range(start=start, end=end).to_list()
 
 # --- Functions for User Settings ---
+# Fungsi update_user_data_in_sheet ini tidak bisa di-cache dengan @st.cache_data/@st.cache_resource
+# karena melakukan operasi penulisan, yang memang harus dieksekusi setiap kali dipanggil.
+# Namun, setelah update, kita perlu membersihkan cache untuk 'sheet_user' agar data terbaru diambil.
 def update_user_data_in_sheet(user_id, column_name, new_value):
     """Updates a specific column for a user in the 'user' Google Sheet."""
+    # Pastikan untuk mengambil data terbaru saat melakukan update, jangan pakai cache di sini
     df_users = pd.DataFrame(sheet_user.get_all_records())
     try:
-        # Find the row index (0-based) in the DataFrame
         df_row_index = df_users[df_users['Id'].astype(str) == str(user_id)].index[0]
-        
-        # gspread uses 1-based indexing for rows and columns
-        # Get the column index (1-based) from the header
-        header = sheet_user.row_values(1) # Get first row (headers)
+        header = sheet_user.row_values(1)
         if column_name not in header:
             st.error(f"Error: Column '{column_name}' not found in 'user' sheet headers.")
             return False
 
-        col_index = header.index(column_name) + 1 # +1 for 1-based indexing
-        gsheet_row = df_row_index + 2 # +1 for 1-based index, +1 because headers are row 1
+        col_index = header.index(column_name) + 1
+        gsheet_row = df_row_index + 2
 
         sheet_user.update_cell(gsheet_row, col_index, new_value)
+        
+        # Invalidate the cache for user data after an update
+        get_data_from_sheet.clear() 
         return True
     except IndexError:
         st.error(f"User with ID {user_id} not found in the 'user' sheet.")
@@ -128,7 +146,7 @@ if st.sidebar.button("Logout"):
     st.rerun()
 
 # --- Tab Layout ---
-tab1, tab2, tab3 = st.tabs(["📝 Timesheet Form", "📊 Activity Log", "⚙️ User Settings"]) # Added tab3
+tab1, tab2, tab3 = st.tabs(["📝 Timesheet Form", "📊 Activity Log", "⚙️ User Settings"])
 
 # --- Timesheet Tab ---
 with tab1:
@@ -148,24 +166,17 @@ with tab1:
 
     shift_opts = ["Day Shift", "Night Shift", "Noon Shift"]
     
-    # Define all possible area options
     all_area_opts = ["GCP", "ER", "ET", "SC", "SM", "SAP"]
 
-    # Get user's preferred area order, if set. Otherwise, use default.
-    # Ensure 'Preferred Areas' column exists in your 'user' sheet!
     user_preferred_areas_str = st.session_state.user.get("Preferred Areas", "")
     if user_preferred_areas_str:
-        # Convert string "Area1,Area2" to list ["Area1", "Area2"]
         preferred_areas_list = [a.strip() for a in user_preferred_areas_str.split(',') if a.strip()]
-        
-        # Create final area_opts by putting preferred areas first, then remaining
-        # Ensure no duplicates and all are valid from all_area_opts
         area_opts = [area for area in preferred_areas_list if area in all_area_opts]
         for area in all_area_opts:
             if area not in area_opts:
                 area_opts.append(area)
     else:
-        area_opts = all_area_opts # Default order
+        area_opts = all_area_opts
 
     initial_data = []
     for date in date_list:
@@ -174,7 +185,7 @@ with tab1:
             "Day": get_day_name(date),
             "Hours": 0.0,
             "Overtime": 0.0,
-            "Area 1": area_opts[0] if area_opts else "", # Use the first preferred area as default
+            "Area 1": area_opts[0] if area_opts else "",
             "Area 2": "",    
             "Area 3": "",    
             "Area 4": "",    
@@ -192,7 +203,7 @@ with tab1:
             "Day": st.column_config.Column("Day", help="Day of the week", disabled=True),
             "Hours": st.column_config.NumberColumn("Working Hours", min_value=0.0, step=0.5, format="%.1f", help="Total working hours"),
             "Overtime": st.column_config.NumberColumn("Overtime Hours", min_value=0.0, step=0.5, format="%.1f", help="Total overtime hours"),
-            "Area 1": st.column_config.SelectboxColumn("Area 1", options=area_opts, required=True, default=area_opts[0] if area_opts else ""), # Updated options and default
+            "Area 1": st.column_config.SelectboxColumn("Area 1", options=area_opts, required=True, default=area_opts[0] if area_opts else ""),
             "Area 2": st.column_config.SelectboxColumn("Area 2", options=[""] + area_opts, required=False, default="", help="Additional work area (optional)"),
             "Area 3": st.column_config.SelectboxColumn("Area 3", options=[""] + area_opts, required=False, default="", help="Additional work area (optional)"),
             "Area 4": st.column_config.SelectboxColumn("Area 4", options=[""] + area_opts, required=False, default="", help="Additional work area (optional)"),
@@ -235,6 +246,8 @@ with tab1:
 
         try:
             sheet_presensi.append_rows(final_data_to_submit)
+            # Invalidate the cache for presensi data after an update
+            get_data_from_sheet.clear() 
             st.success("✅ Timesheet successfully submitted!")
         except Exception as e:
             st.error(f"Error submitting timesheet: {e}")
@@ -251,7 +264,8 @@ with tab2:
     with col_log_end:
         log_end_date = st.date_input("Log End Date", datetime.today(), key="all_log_end_date")
 
-    df_log_all = pd.DataFrame(sheet_presensi.get_all_records())
+    # Mengambil data dari cache
+    df_log_all = get_data_from_sheet(sheet_presensi)
 
     if 'Date' in df_log_all.columns:
         df_log_all['Date'] = pd.to_datetime(df_log_all['Date'], errors='coerce')
@@ -266,25 +280,21 @@ with tab2:
     col_filter_user, col_filter_shift, col_filter_area = st.columns(3)
 
     with col_filter_user:
-        # Get unique usernames from the filtered data
         all_usernames = ["All"] + sorted(df_filtered_all_log['Username'].unique().tolist())
         selected_username = st.selectbox("Filter by User", all_usernames)
 
     with col_filter_shift:
-        # Get unique shifts from the filtered data
         all_shifts = ["All"] + sorted(df_filtered_all_log['Shift'].unique().tolist())
         selected_shift = st.selectbox("Filter by Shift", all_shifts)
     
     with col_filter_area:
-        # Get unique areas from all Area columns (Area 1, Area 2, Area 3, Area 4)
         all_areas_in_log = []
         for col_name in ["Area 1", "Area 2", "Area 3", "Area 4"]:
             if col_name in df_filtered_all_log.columns:
                 all_areas_in_log.extend(df_filtered_all_log[col_name].dropna().unique().tolist())
-        all_areas_in_log = ["All"] + sorted(list(set(all_areas_in_log))) # Remove duplicates and sort
+        all_areas_in_log = ["All"] + sorted(list(set(all_areas_in_log)))
         selected_area = st.selectbox("Filter by Area", all_areas_in_log)
 
-    # Apply additional filters
     if selected_username != "All":
         df_filtered_all_log = df_filtered_all_log[df_filtered_all_log['Username'] == selected_username]
     
@@ -292,7 +302,6 @@ with tab2:
         df_filtered_all_log = df_filtered_all_log[df_filtered_all_log['Shift'] == selected_shift]
     
     if selected_area != "All":
-        # Filter if the selected_area is present in any of the Area columns
         df_filtered_all_log = df_filtered_all_log[
             (df_filtered_all_log['Area 1'] == selected_area) |
             (df_filtered_all_log['Area 2'] == selected_area) |
@@ -326,7 +335,7 @@ with tab3:
 
     current_user_id = st.session_state.user["Id"]
     current_username = st.session_state.user["Username"]
-    current_password_hashed = st.session_state.user["Password"] # This is the current stored password
+    current_password_hashed = st.session_state.user["Password"]
 
     st.subheader("Change Password")
     with st.form("change_password_form", clear_on_submit=True):
@@ -336,7 +345,7 @@ with tab3:
         submit_password_change = st.form_submit_button("Update Password")
 
         if submit_password_change:
-            if old_password != current_password_hashed: # Compare plain text old_password with stored (potentially hashed) current_password_hashed
+            if old_password != current_password_hashed:
                 st.error("❌ Current password incorrect.")
             elif new_password != confirm_new_password:
                 st.error("❌ New passwords do not match.")
@@ -346,11 +355,8 @@ with tab3:
                 st.warning("⚠️ New password cannot be empty.")
             else:
                 if update_user_data_in_sheet(current_user_id, "Password", new_password):
-                    st.session_state.user["Password"] = new_password # Update session state
+                    st.session_state.user["Password"] = new_password
                     st.success("✅ Password updated successfully! Please re-login for changes to take full effect.")
-                    # Optionally, force logout to ensure re-login with new password
-                    # st.session_state.user = None
-                    # st.rerun()
                 else:
                     st.error("Something went wrong during password update. Please try again.")
 
@@ -362,9 +368,9 @@ with tab3:
         if submit_username_change:
             if new_username and new_username != current_username:
                 if update_user_data_in_sheet(current_user_id, "Username", new_username):
-                    st.session_state.user["Username"] = new_username # Update session state
+                    st.session_state.user["Username"] = new_username
                     st.success(f"✅ Username updated to '{new_username}' successfully!")
-                    st.rerun() # Rerun to update sidebar and other displays
+                    st.rerun()
                 else:
                     st.error("Something went wrong during username update. Please try again.")
             elif new_username == current_username:
@@ -373,17 +379,14 @@ with tab3:
                 st.warning("⚠️ Username cannot be empty.")
 
     st.subheader("Set Priority Areas")
-    # All possible area options (consistent with Timesheet tab)
     all_area_opts = ["GCP", "ER", "ET", "SC", "SM", "SAP"]
 
-    # Get current preferred areas from user session, convert string to list
     current_preferred_areas_str = st.session_state.user.get("Preferred Areas", "")
     current_preferred_areas_list = [a.strip() for a in current_preferred_areas_str.split(',') if a.strip()]
     
-    # Filter out any non-existent areas from the stored preference
     current_preferred_areas_list = [area for area in current_preferred_areas_list if area in all_area_opts]
 
-    with st.form("set_priority_areas_form", clear_on_submit=False): # Do not clear on submit for this form
+    with st.form("set_priority_areas_form", clear_on_submit=False):
         selected_areas = st.multiselect(
             "Select and order your frequently used areas (drag to reorder):",
             options=all_area_opts,
@@ -393,12 +396,11 @@ with tab3:
         submit_priority_areas = st.form_submit_button("Save Priority Areas")
 
         if submit_priority_areas:
-            # Convert the list of selected areas back to a comma-separated string
             new_preferred_areas_str = ", ".join(selected_areas)
             if update_user_data_in_sheet(current_user_id, "Preferred Areas", new_preferred_areas_str):
-                st.session_state.user["Preferred Areas"] = new_preferred_areas_str # Update session state
+                st.session_state.user["Preferred Areas"] = new_preferred_areas_str
                 st.success("✅ Priority Areas saved successfully!")
-                st.rerun() # Rerun to apply new order in Timesheet form immediately
+                st.rerun()
             else:
                 st.error("Something went wrong during saving priority areas. Please try again.")
 
