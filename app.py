@@ -2,8 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 import gspread
-from google.oauth2.service_account import Credentials  # ✅ Ganti ini
-
+from google.oauth2.service_account import Credentials
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -44,7 +43,6 @@ except Exception as e:
              "Please check your internet connection or Google API status."
              "If it's a 503 error, try refreshing the app in a few moments.")
     st.stop()
-
 
 
 # --- Helper Functions ---
@@ -263,11 +261,50 @@ with tab2:
         st.warning("Column 'Date' not found in 'presensi' sheet for filtering. Displaying all available log data.")
         df_filtered_all_log = df_log_all.copy()
 
+    # --- New Filters for Activity Log ---
+    st.subheader("Filter Activity Log")
+    col_filter_user, col_filter_shift, col_filter_area = st.columns(3)
+
+    with col_filter_user:
+        # Get unique usernames from the filtered data
+        all_usernames = ["All"] + sorted(df_filtered_all_log['Username'].unique().tolist())
+        selected_username = st.selectbox("Filter by User", all_usernames)
+
+    with col_filter_shift:
+        # Get unique shifts from the filtered data
+        all_shifts = ["All"] + sorted(df_filtered_all_log['Shift'].unique().tolist())
+        selected_shift = st.selectbox("Filter by Shift", all_shifts)
+    
+    with col_filter_area:
+        # Get unique areas from all Area columns (Area 1, Area 2, Area 3, Area 4)
+        all_areas_in_log = []
+        for col_name in ["Area 1", "Area 2", "Area 3", "Area 4"]:
+            if col_name in df_filtered_all_log.columns:
+                all_areas_in_log.extend(df_filtered_all_log[col_name].dropna().unique().tolist())
+        all_areas_in_log = ["All"] + sorted(list(set(all_areas_in_log))) # Remove duplicates and sort
+        selected_area = st.selectbox("Filter by Area", all_areas_in_log)
+
+    # Apply additional filters
+    if selected_username != "All":
+        df_filtered_all_log = df_filtered_all_log[df_filtered_all_log['Username'] == selected_username]
+    
+    if selected_shift != "All":
+        df_filtered_all_log = df_filtered_all_log[df_filtered_all_log['Shift'] == selected_shift]
+    
+    if selected_area != "All":
+        # Filter if the selected_area is present in any of the Area columns
+        df_filtered_all_log = df_filtered_all_log[
+            (df_filtered_all_log['Area 1'] == selected_area) |
+            (df_filtered_all_log['Area 2'] == selected_area) |
+            (df_filtered_all_log['Area 3'] == selected_area) |
+            (df_filtered_all_log['Area 4'] == selected_area)
+        ]
+
     columns_to_display_all = [
         "Username",
         "Date",
         "Day", "Hours", "Overtime",
-        "Area 1", "Area 2", "Area 3", "Area 4", 
+        "Area 1", "Area 2", "Area 3", "Area 4",    
         "Shift", "Remark"
     ]
 
@@ -282,13 +319,7 @@ with tab2:
     )
 
 
-
-## User Settings Tab
-
-#This is the new tab for user preferences.
-
-
-
+# --- User Settings Tab
 with tab3:
     st.header("⚙️ User Settings")
     st.markdown("Here you can manage your account preferences.")
