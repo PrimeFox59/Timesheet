@@ -2,7 +2,8 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 import gspread
-from oauth2client.service_account import ServiceAccountAccountCredentials
+from google.oauth2.service_account import Credentials  # ✅ Ganti ini
+
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -12,12 +13,21 @@ st.set_page_config(
 )
 
 # --- Google Sheet Configuration ---
-# Using Streamlit secrets for deployment
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+scope = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
+
+# Ambil kredensial dari streamlit secrets (secrets.toml)
 key_dict = st.secrets["gcp_service_account"]
-creds = ServiceAccountCredentials.from_json_keyfile_dict(key_dict, scope)
+
+# Gunakan Credentials dari google-auth
+creds = Credentials.from_service_account_info(key_dict, scopes=scope)
+
+# ID Google Sheet
 SHEET_ID = "1BwwoNx3t3MBrsOB3H9BSxnWbYCwChwgl4t1HrpFYWpA"
 
+# Koneksi ke Google Sheets
 try:
     client = gspread.authorize(creds)
     sheet_user = client.open_by_key(SHEET_ID).worksheet("user")
@@ -26,7 +36,7 @@ except gspread.exceptions.SpreadsheetNotFound:
     st.error(
         "**Error:** Spreadsheet not found. "
         "Please double-check the `SHEET_ID` in your code. "
-        "Also, ensure your service account (email in credential.json) has Editor access to this Google Sheet."
+        "Also, ensure your service account (email in credential) has Editor access to this Google Sheet."
     )
     st.stop()
 except Exception as e:
@@ -34,6 +44,7 @@ except Exception as e:
              "Please check your internet connection or Google API status."
              "If it's a 503 error, try refreshing the app in a few moments.")
     st.stop()
+
 
 
 # --- Helper Functions ---
