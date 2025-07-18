@@ -17,38 +17,21 @@ scope = [
     "https://www.googleapis.com/auth/drive"
 ]
 
-# Ambil kredensial dari streamlit secrets (secrets.toml)
-# key_dict ini sudah di-cache oleh Streamlit secara internal karena berasal dari st.secrets
 key_dict = st.secrets["gcp_service_account"]
-
-# Gunakan Credentials dari google-auth
-# Objek 'creds' ini yang tidak hashable jika langsung dilewatkan ke cache
 creds = Credentials.from_service_account_info(key_dict, scopes=scope)
-
-# ID Google Sheet
 SHEET_ID = "1BwwoNx3t3MBrsOB3H9BSxnWbYCwChwgl4t1HrpFYWpA"
 
-# Menggunakan st.cache_resource untuk koneksi gspread
-# Kita tidak akan passing 'creds' langsung ke fungsi yang di-cache.
-# Sebagai gantinya, kita akan membuat 'creds' di dalam fungsi yang di-cache,
-# atau, jika 'creds' sudah dibuat di scope global, kita bisa menggunakannya tanpa menjadikannya argumen.
-# Yang terpenting adalah argumen yang masuk ke fungsi cache harus hashable.
 @st.cache_resource(ttl=3600) # Cache connection for 1 hour (3600 seconds)
 def get_google_sheet_client(sheet_id):
     try:
-        # PENTING: Gunakan 'creds' yang sudah didefinisikan secara global.
-        # Atau, jika Anda ingin fungsi ini sepenuhnya mandiri, buat 'creds' di sini
-        # Contoh membuat 'creds' di dalam fungsi (lebih disarankan untuk fungsi cache):
-        # key_dict_internal = st.secrets["gcp_service_account"] # Ambil lagi dari secrets
-        # creds_internal = Credentials.from_service_account_info(key_dict_internal, scopes=scope)
-        # client = gspread.authorize(creds_internal)
-
-        # Untuk kemudahan, kita asumsikan 'creds' di luar sudah aman dan bisa diakses.
-        # 'sheet_id' adalah argumen hashable.
         client = gspread.authorize(creds)
+        # Instead of directly returning worksheet objects, we'll store their titles
+        # The actual worksheet objects will be retrieved when data is needed.
         sheet_user_obj = client.open_by_key(sheet_id).worksheet("user")
         sheet_presensi_obj = client.open_by_key(sheet_id).worksheet("presensi")
-        return client, sheet_user_obj, sheet_presensi_obj
+        
+        # Return client and worksheet titles/names for later retrieval
+        return client, sheet_user_obj.title, sheet_presensi_obj.title
     except gspread.exceptions.SpreadsheetNotFound:
         st.error(
             "**Error:** Spreadsheet not found. "
@@ -62,20 +45,28 @@ def get_google_sheet_client(sheet_id):
                  "If it's a 503 error, try refreshing the app in a few moments.")
         st.stop()
 
-# Panggil fungsi tanpa argumen 'creds', karena 'creds' diakses dari scope global
-client, sheet_user, sheet_presensi = get_google_sheet_client(SHEET_ID)
+# Now, client is the gspread client, and sheet_user_title/sheet_presensi_title are strings
+client, sheet_user_title, sheet_presensi_title = get_google_sheet_client(SHEET_ID)
 
 
 # Menggunakan st.cache_data untuk membaca data dari Google Sheet
+# Sekarang fungsi ini menerima sheet_id dan sheet_title (keduanya hashable)
 @st.cache_data(ttl=600) # Cache data for 10 minutes (600 seconds)
-def get_data_from_sheet(sheet_object):
-    # sheet_object (gspread.worksheet.Worksheet) adalah objek yang hashable
-    return pd.DataFrame(sheet_object.get_all_records())
+def get_data_from_sheet(spreadsheet_id, worksheet_title):
+    try:
+        # Re-open the spreadsheet and get the specific worksheet object inside the cached function
+        # This ensures we are always working with a fresh worksheet object if the cache is missed.
+        worksheet = client.open_by_key(spreadsheet_id).worksheet(worksheet_title)
+        return pd.DataFrame(worksheet.get_all_records())
+    except Exception as e:
+        st.error(f"Error fetching data from sheet '{worksheet_title}': {e}")
+        return pd.DataFrame() # Return empty DataFrame on error
 
 
 # --- Helper Functions ---
 def check_login(user_id, password):
-    df = get_data_from_sheet(sheet_user) # Menggunakan fungsi cache
+    # Pass sheet_user_title and SHEET_ID
+    df = get_data_from_sheet(SHEET_ID, sheet_user_title)
     user = df[(df['Id'].astype(str) == str(user_id)) & (df['Password'] == password)]
     return user.iloc[0] if not user.empty else None
 
@@ -86,12 +77,19 @@ def get_date_range(start, end):
     return pd.date_range(start=start, end=end).to_list()
 
 # --- Functions for User Settings ---
+# Fungsi update_user_data_in_sheet ini tidak bisa di-cache karena melakukan operasi penulisan.
+# Namun, setelah update, kita perlu membersihkan cache untuk 'sheet_user' agar data terbaru diambil.
 def update_user_data_in_sheet(user_id, column_name, new_value):
     """Updates a specific column for a user in the 'user' Google Sheet."""
-    df_users = pd.DataFrame(sheet_user.get_all_records()) # Ambil data terbaru langsung dari sheet
+    # We need the actual worksheet object for writing
+    sheet_user_actual = client.open_by_key(SHEET_ID).worksheet(sheet_user_title)
+    
+    # Pastikan untuk mengambil data terbaru saat melakukan update, jangan pakai cache di sini
+    # We still need a fresh DataFrame to find the row index
+    df_users = pd.DataFrame(sheet_user_actual.get_all_records()) 
     try:
         df_row_index = df_users[df_users['Id'].astype(str) == str(user_id)].index[0]
-        header = sheet_user.row_values(1)
+        header = sheet_user_actual.row_values(1)
         if column_name not in header:
             st.error(f"Error: Column '{column_name}' not found in 'user' sheet headers.")
             return False
@@ -99,12 +97,10 @@ def update_user_data_in_sheet(user_id, column_name, new_value):
         col_index = header.index(column_name) + 1
         gsheet_row = df_row_index + 2
 
-        sheet_user.update_cell(gsheet_row, col_index, new_value)
+        sheet_user_actual.update_cell(gsheet_row, col_index, new_value)
         
         # Invalidate the cache for user data after an update
-        get_data_from_sheet.clear() # Membersihkan semua cache dari get_data_from_sheet
-                                     # Ini akan memaksa pembacaan ulang data user dan presensi
-                                     # saat berikutnya dipanggil.
+        get_data_from_sheet.clear() 
         return True
     except IndexError:
         st.error(f"User with ID {user_id} not found in the 'user' sheet.")
@@ -256,7 +252,9 @@ with tab1:
             ])
 
         try:
-            sheet_presensi.append_rows(final_data_to_submit)
+            # We need the actual worksheet object for writing
+            sheet_presensi_actual = client.open_by_key(SHEET_ID).worksheet(sheet_presensi_title)
+            sheet_presensi_actual.append_rows(final_data_to_submit)
             # Invalidate the cache for presensi data after an update
             get_data_from_sheet.clear() 
             st.success("✅ Timesheet successfully submitted!")
@@ -275,8 +273,8 @@ with tab2:
     with col_log_end:
         log_end_date = st.date_input("Log End Date", datetime.today(), key="all_log_end_date")
 
-    # Mengambil data dari cache
-    df_log_all = get_data_from_sheet(sheet_presensi)
+    # Mengambil data dari cache dengan passing ID spreadsheet dan title worksheet
+    df_log_all = get_data_from_sheet(SHEET_ID, sheet_presensi_title)
 
     if 'Date' in df_log_all.columns:
         df_log_all['Date'] = pd.to_datetime(df_log_all['Date'], errors='coerce')
