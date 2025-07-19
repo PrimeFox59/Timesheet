@@ -483,7 +483,6 @@ with tab3:
             else:
                 st.error("Something went wrong during saving priority areas. Please try again.")
 
-    ---
 
     st.subheader("Set Preferred Shift")
     all_shift_opts = ["Day Shift", "Night Shift", "Noon Shift"]
