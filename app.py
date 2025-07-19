@@ -257,10 +257,28 @@ if st.sidebar.button("Logout"):
     st.rerun()
 
 # --- Tab Layout ---
-tab1, tab2, tab3, tab4 = st.tabs(["📝 Timesheet Form", "📊 Activity Log", "🔍 Audit Log", "⚙️ User Settings"])
+# Determine which tabs to show based on user role
+allowed_roles_for_restricted_tabs = ["Site Admin", "Commissioning Director"]
+show_audit_log_tab = st.session_state.user["Role"] in allowed_roles_for_restricted_tabs
+
+all_possible_tabs_names = ["📝 Timesheet Form", "📊 Activity Log", "🔍 Audit Log", "⚙️ User Settings"]
+
+# Filter tabs based on role
+displayed_tab_names = []
+for tab_name in all_possible_tabs_names:
+    if tab_name == "🔍 Audit Log" and not show_audit_log_tab:
+        continue
+    displayed_tab_names.append(tab_name)
+
+# Create tabs dynamically
+tabs_objects = st.tabs(displayed_tab_names)
+
+# Map tab names to their actual tab objects for consistent access
+tab_map = {name: obj for name, obj in zip(displayed_tab_names, tabs_objects)}
+
 
 # --- Timesheet Tab ---
-with tab1:
+with tab_map["📝 Timesheet Form"]:
     st.header("📝 Online Timesheet Form")
     today = datetime.today()
 
@@ -483,7 +501,7 @@ with tab1:
 
 
 # --- Activity Log Tab (For All Users) ---
-with tab2:
+with tab_map["📊 Activity Log"]:
     st.header("📊 All Users Activity Log")
 
     col_log_start, col_log_end = st.columns(2)
@@ -605,94 +623,95 @@ with tab2:
         st.warning("Data log tidak dapat diurutkan berdasarkan 'Date' karena kolom tersebut tidak ditemukan.")
 
 
-# --- AUDIT TRAIL CHANGE: New Tab for Audit Log ---
-with tab3: # Moved to tab3
-    st.header("🔍 System Audit Log")
-    st.markdown("This log records significant actions performed within the application.")
+# --- Audit Log Tab ---
+if show_audit_log_tab: # This block is now conditional
+    with tab_map["🔍 Audit Log"]:
+        st.header("🔍 System Audit Log")
+        st.markdown("This log records significant actions performed within the application.")
 
-    df_audit_log = get_data_from_sheet(SHEET_ID, sheet_audit_log_title)
+        df_audit_log = get_data_from_sheet(SHEET_ID, sheet_audit_log_title)
 
-    if not df_audit_log.empty:
-        expected_audit_cols = ["Timestamp", "User ID", "Username", "Action", "Description", "Status"]
-        # Filter df_audit_log to only include columns that are in expected_audit_cols AND exist in the DataFrame
-        df_audit_log_display = df_audit_log[[col for col in expected_audit_cols if col in df_audit_log.columns]]
-        
-        # Check if any expected columns are missing
-        for col in expected_audit_cols:
-            if col not in df_audit_log.columns:
-                st.warning(f"Audit log column '{col}' not found. Please ensure your 'audit_log' Google Sheet has the correct headers.")
-                
-        if 'Timestamp' in df_audit_log_display.columns:
-            df_audit_log_display['Timestamp'] = pd.to_datetime(df_audit_log_display['Timestamp'], errors='coerce')
-            df_audit_log_display.dropna(subset=['Timestamp'], inplace=True)
-        else:
-            st.warning("Kolom 'Timestamp' tidak ditemukan di audit log.")
+        if not df_audit_log.empty:
+            expected_audit_cols = ["Timestamp", "User ID", "Username", "Action", "Description", "Status"]
+            # Filter df_audit_log to only include columns that are in expected_audit_cols AND exist in the DataFrame
+            df_audit_log_display = df_audit_log[[col for col in expected_audit_cols if col in df_audit_log.columns]]
             
-        st.subheader("Filter Audit Log")
-        col_audit_start, col_audit_end = st.columns(2)
-        with col_audit_start:
-            audit_start_date = st.date_input("Audit Log Start Date", datetime.today() - timedelta(days=30), key="audit_log_start_date")
-        with col_audit_end:
-            audit_end_date = st.date_input("Audit Log End Date", datetime.today(), key="audit_log_end_date")
+            # Check if any expected columns are missing
+            for col in expected_audit_cols:
+                if col not in df_audit_log.columns:
+                    st.warning(f"Audit log column '{col}' not found. Please ensure your 'audit_log' Google Sheet has the correct headers.")
+                    
+            if 'Timestamp' in df_audit_log_display.columns:
+                df_audit_log_display['Timestamp'] = pd.to_datetime(df_audit_log_display['Timestamp'], errors='coerce')
+                df_audit_log_display.dropna(subset=['Timestamp'], inplace=True)
+            else:
+                st.warning("Kolom 'Timestamp' tidak ditemukan di audit log.")
+                
+            st.subheader("Filter Audit Log")
+            col_audit_start, col_audit_end = st.columns(2)
+            with col_audit_start:
+                audit_start_date = st.date_input("Audit Log Start Date", datetime.today() - timedelta(days=30), key="audit_log_start_date")
+            with col_audit_end:
+                audit_end_date = st.date_input("Audit Log End Date", datetime.today(), key="audit_log_end_date")
 
-        if 'Timestamp' in df_audit_log_display.columns:
-            df_filtered_audit_log = df_audit_log_display[
-                (df_audit_log_display['Timestamp'].dt.date >= audit_start_date) &
-                (df_audit_log_display['Timestamp'].dt.date <= audit_end_date)
-            ].copy()
+            if 'Timestamp' in df_audit_log_display.columns:
+                df_filtered_audit_log = df_audit_log_display[
+                    (df_audit_log_display['Timestamp'].dt.date >= audit_start_date) &
+                    (df_audit_log_display['Timestamp'].dt.date <= audit_end_date)
+                ].copy()
+            else:
+                df_filtered_audit_log = df_audit_log_display.copy() # No date filtering possible
+
+            col_audit_user, col_audit_action, col_audit_status = st.columns(3)
+            with col_audit_user:
+                if 'Username' in df_filtered_audit_log.columns:
+                    all_audit_users = ["All"] + sorted(df_filtered_audit_log['Username'].unique().tolist())
+                else:
+                    all_audit_users = ["All"]
+                selected_audit_user = st.selectbox("Filter by User", all_audit_users, key="selected_audit_user")
+            with col_audit_action:
+                if 'Action' in df_filtered_audit_log.columns:
+                    all_audit_actions = ["All"] + sorted(df_filtered_audit_log['Action'].unique().tolist())
+                else:
+                    all_audit_actions = ["All"]
+                selected_audit_action = st.selectbox("Filter by Action", all_audit_actions, key="selected_audit_action")
+            with col_audit_status:
+                if 'Status' in df_filtered_audit_log.columns:
+                    all_audit_statuses = ["All"] + sorted(df_filtered_audit_log['Status'].unique().tolist())
+                else:
+                    all_audit_statuses = ["All"]
+                selected_audit_status = st.selectbox("Filter by Status", all_audit_statuses, key="selected_audit_status")
+
+            if selected_audit_user != "All":
+                df_filtered_audit_log = df_filtered_audit_log[df_filtered_audit_log['Username'] == selected_audit_user]
+            if selected_audit_action != "All":
+                df_filtered_audit_log = df_filtered_audit_log[df_filtered_audit_log['Action'] == selected_audit_action]
+            if selected_audit_status != "All":
+                df_filtered_audit_log = df_filtered_audit_log[df_filtered_audit_log['Status'] == selected_audit_status]
+
+            # --- FIX: Conditionally sort audit log only if 'Timestamp' column exists ---
+            if 'Timestamp' in df_filtered_audit_log.columns:
+                st.dataframe(
+                    df_filtered_audit_log
+                    .sort_values(by="Timestamp", ascending=False, na_position='last')
+                    .reset_index(drop=True),
+                    hide_index=True,
+                    use_container_width=True
+                )
+            else:
+                st.dataframe(
+                    df_filtered_audit_log
+                    .reset_index(drop=True), # Display without sorting if 'Timestamp' is missing
+                    hide_index=True,
+                    use_container_width=True
+                )
+                st.warning("Audit log tidak dapat diurutkan berdasarkan 'Timestamp' karena kolom tersebut tidak ditemukan.")
         else:
-            df_filtered_audit_log = df_audit_log_display.copy() # No date filtering possible
-
-        col_audit_user, col_audit_action, col_audit_status = st.columns(3)
-        with col_audit_user:
-            if 'Username' in df_filtered_audit_log.columns:
-                all_audit_users = ["All"] + sorted(df_filtered_audit_log['Username'].unique().tolist())
-            else:
-                all_audit_users = ["All"]
-            selected_audit_user = st.selectbox("Filter by User", all_audit_users, key="selected_audit_user")
-        with col_audit_action:
-            if 'Action' in df_filtered_audit_log.columns:
-                all_audit_actions = ["All"] + sorted(df_filtered_audit_log['Action'].unique().tolist())
-            else:
-                all_audit_actions = ["All"]
-            selected_audit_action = st.selectbox("Filter by Action", all_audit_actions, key="selected_audit_action")
-        with col_audit_status:
-            if 'Status' in df_filtered_audit_log.columns:
-                all_audit_statuses = ["All"] + sorted(df_filtered_audit_log['Status'].unique().tolist())
-            else:
-                all_audit_statuses = ["All"]
-            selected_audit_status = st.selectbox("Filter by Status", all_audit_statuses, key="selected_audit_status")
-
-        if selected_audit_user != "All":
-            df_filtered_audit_log = df_filtered_audit_log[df_filtered_audit_log['Username'] == selected_audit_user]
-        if selected_audit_action != "All":
-            df_filtered_audit_log = df_filtered_audit_log[df_filtered_audit_log['Action'] == selected_audit_action]
-        if selected_audit_status != "All":
-            df_filtered_audit_log = df_filtered_audit_log[df_filtered_audit_log['Status'] == selected_audit_status]
-
-        # --- FIX: Conditionally sort audit log only if 'Timestamp' column exists ---
-        if 'Timestamp' in df_filtered_audit_log.columns:
-            st.dataframe(
-                df_filtered_audit_log
-                .sort_values(by="Timestamp", ascending=False, na_position='last')
-                .reset_index(drop=True),
-                hide_index=True,
-                use_container_width=True
-            )
-        else:
-            st.dataframe(
-                df_filtered_audit_log
-                .reset_index(drop=True), # Display without sorting if 'Timestamp' is missing
-                hide_index=True,
-                use_container_width=True
-            )
-            st.warning("Audit log tidak dapat diurutkan berdasarkan 'Timestamp' karena kolom tersebut tidak ditemukan.")
-    else:
-        st.info("No audit log entries found.")
+            st.info("No audit log entries found.")
 
 
 # --- User Settings Tab
-with tab4: # Moved to tab4
+with tab_map["⚙️ User Settings"]:
     st.header("⚙️ User Settings")
     st.markdown("Here you can manage your account preferences.")
 
