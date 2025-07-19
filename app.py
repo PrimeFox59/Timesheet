@@ -90,6 +90,9 @@ def check_login(user_id, password):
             return None
     else:
         # Fallback for old plain text passwords (REMOVE THIS AFTER ALL PASSWORDS ARE HASHED)
+        # This fallback allows users with plain text passwords to still log in.
+        # Once all users have updated their passwords, you should remove this 'else' block
+        # for full bcrypt security.
         if password == stored_password_value:
             return user_row.iloc[0]
         else:
@@ -117,7 +120,7 @@ def update_user_data_in_sheet(user_id, column_name, new_value):
         # Get header for column index (1-based for gspread)
         header = sheet_user_actual.row_values(1)
         if column_name not in header:
-            st.error(f"Error: Column '{column_name}' not found in 'user' sheet headers.")
+            st.error(f"Error: Column '{column_name}' not found in 'user' sheet headers. Please add this column to your 'user' Google Sheet.")
             return False
 
         col_index = header.index(column_name) + 1
@@ -260,8 +263,8 @@ with tab1:
         column_config={
             "Date": st.column_config.Column("Date", help="Date of timesheet entry", disabled=True),
             "Day": st.column_config.Column("Day", help="Day of the week", disabled=True),
-            "Hours": st.column_config.NumberColumn("Working Hours", min_value=0.0, step=0.5, format="%.1f", help="Total working hours"),
-            "Overtime": st.column_config.NumberColumn("Overtime Hours", min_value=0.0, step=0.5, format="%.1f", help="Total overtime hours"),
+            "Hours": st.column_config.NumberColumn("Working Hours", min_value=0.0, max_value=24.0, step=0.5, format="%.1f", help="Total working hours (0-24 hours)"),
+            "Overtime": st.column_config.NumberColumn("Overtime Hours", min_value=0.0, max_value=24.0, step=0.5, format="%.1f", help="Total overtime hours (0-24 hours)"),
             "Area 1": st.column_config.SelectboxColumn("Area 1", options=area_opts, required=True, default=area_opts[0] if area_opts else ""),
             "Area 2": st.column_config.SelectboxColumn("Area 2", options=[""] + area_opts, required=False, default="", help="Additional work area (optional)"),
             "Area 3": st.column_config.SelectboxColumn("Area 3", options=[""] + area_opts, required=False, default="", help="Additional work area (optional)"),
@@ -280,36 +283,98 @@ with tab1:
 
     if st.button("📤 Submit Timesheet"):
         final_data_to_submit = []
+        duplicate_entries_found = []
+        validation_errors = []
+        
+        # Ambil data presensi terbaru dari sheet untuk pengecekan duplikasi
+        # Pastikan cache untuk data presensi bersih sebelum mengambil
+        get_data_from_sheet.clear() 
+        df_existing_presensi = get_data_from_sheet(SHEET_ID, sheet_presensi_title)
+        
+        current_user_id = st.session_state.user["Id"]
 
+        # Loop pertama untuk validasi dan identifikasi duplikasi
         for index, row in edited_df.iterrows():
-            entry = {
-                "Id": st.session_state.user["Id"],
-                "Username": st.session_state.user["Username"],
-                "Date": row["Date"],
-                "Day": row["Day"],
-                "Hours": row["Hours"],
-                "Overtime": row["Overtime"],
-                "Area 1": row["Area 1"],
-                "Area 2": row["Area 2"],
-                "Area 3": row["Area 3"],
-                "Area 4": row["Area 4"],
-                "Shift": row["Shift"],
-                "Remark": row["Remark"],
-            }
-            final_data_to_submit.append([
-                entry["Id"], entry["Username"], entry["Date"], entry["Day"],
-                entry["Hours"], entry["Overtime"],
-                entry["Area 1"], entry["Area 2"], entry["Area 3"], entry["Area 4"],
-                entry["Shift"], entry["Remark"]
-            ])
+            entry_date_str = row["Date"]
 
-        try:
-            sheet_presensi_actual = client.open_by_key(SHEET_ID).worksheet(sheet_presensi_title)
-            sheet_presensi_actual.append_rows(final_data_to_submit)
-            get_data_from_sheet.clear() 
-            st.success("✅ Timesheet successfully submitted!")
-        except Exception as e:
-            st.error(f"Error submitting timesheet: {e}")
+            # 1. Basic validation for Hours and Overtime (numeric and range)
+            hours = 0.0
+            overtime = 0.0
+            try:
+                hours = float(row["Hours"])
+                overtime = float(row["Overtime"])
+                if hours < 0 or overtime < 0:
+                    validation_errors.append(f"Hours or Overtime cannot be negative on Date: **{entry_date_str}**.")
+            except ValueError:
+                validation_errors.append(f"Invalid numeric input for Hours or Overtime on Date: **{entry_date_str}**.")
+            
+            # 2. Custom validation: Total hours (Working Hours + Overtime) should not exceed 24
+            if (hours + overtime) > 24.01: # Add small tolerance for float arithmetic
+                validation_errors.append(f"Total hours (Working Hours + Overtime) on Date: **{entry_date_str}** exceeds 24 hours. Please correct.")
+            
+            # 3. Ensure Area 1 is not empty
+            if not row["Area 1"] or str(row["Area 1"]).strip() == "":
+                validation_errors.append(f"**Area 1** cannot be empty on Date: **{entry_date_str}**.")
+
+            # 4. Check for duplication (Id + Date)
+            is_duplicate = df_existing_presensi[
+                (df_existing_presensi['Id'].astype(str) == str(current_user_id)) &
+                (df_existing_presensi['Date'].astype(str) == entry_date_str)
+            ].empty is False
+
+            if is_duplicate:
+                duplicate_entries_found.append(entry_date_str)
+            else:
+                # Add to final_data_to_submit only if no validation errors for this specific row
+                # (This is implicitly handled by checking validation_errors globally later)
+                entry = {
+                    "Id": current_user_id,
+                    "Username": st.session_state.user["Username"],
+                    "Date": entry_date_str,
+                    "Day": row["Day"],
+                    "Hours": hours, # Use the float value
+                    "Overtime": overtime, # Use the float value
+                    "Area 1": row["Area 1"],
+                    "Area 2": row["Area 2"],
+                    "Area 3": row["Area 3"],
+                    "Area 4": row["Area 4"],
+                    "Shift": row["Shift"],
+                    "Remark": row["Remark"],
+                }
+                final_data_to_submit.append([
+                    entry["Id"], entry["Username"], entry["Date"], entry["Day"],
+                    entry["Hours"], entry["Overtime"],
+                    entry["Area 1"], entry["Area 2"], entry["Area 3"], entry["Area 4"],
+                    entry["Shift"], entry["Remark"]
+                ])
+        
+        # Display all validation errors first
+        if validation_errors:
+            for error in validation_errors:
+                st.error(f"❗ Input Error: {error}")
+            st.warning("Please correct the errors and resubmit.")
+            # Do not proceed with submission if there are validation errors
+            # (Implicitly handled by the next combined condition)
+            
+        # Display duplicate entry messages if any
+        if duplicate_entries_found:
+            st.error(f"❌ Submission Failed: Timesheet for the following dates already exists for user {current_user_id}: **{', '.join(duplicate_entries_found)}**. Please edit existing entries via Activity Log if needed.")
+            
+        # Only proceed to submit if NO validation errors AND NO duplicate entries AND there's data to submit
+        if not validation_errors and not duplicate_entries_found and final_data_to_submit:
+            try:
+                sheet_presensi_actual = client.open_by_key(SHEET_ID).worksheet(sheet_presensi_title)
+                sheet_presensi_actual.append_rows(final_data_to_submit)
+                get_data_from_sheet.clear() # Clear cache again after successful write
+                st.success("✅ Timesheet successfully submitted!")
+                st.rerun() # Refresh app to clear form and messages
+            except Exception as e:
+                st.error(f"Error submitting timesheet: {e}")
+        elif not final_data_to_submit and not validation_errors and not duplicate_entries_found:
+            # This condition handles cases where no new entries are generated due to all being duplicates
+            # or if the user submits an empty form range (though st.data_editor makes this less likely)
+            st.info("💡 No new timesheet entries to submit (all might be duplicates or zero rows).")
+
 
 # --- Activity Log Tab (For All Users) ---
 with tab2:
@@ -461,7 +526,7 @@ with tab3:
     all_area_opts = ["GCP", "ER", "ET", "SC", "SM", "SAP"]
 
     current_preferred_areas_str = st.session_state.user.get("Preferred Areas", "")
-    current_preferred_areas_list = [a.strip() for a in current_preferred_areas_str.split(',') if a.strip()]
+    current_preferred_areas_list = [a.strip() for a a in current_preferred_areas_str.split(',') if a.strip()]
     
     current_preferred_areas_list = [area for area in current_preferred_areas_list if area in all_area_opts]
 
@@ -482,7 +547,6 @@ with tab3:
                 st.rerun()
             else:
                 st.error("Something went wrong during saving priority areas. Please try again.")
-
 
     st.subheader("Set Preferred Shift")
     all_shift_opts = ["Day Shift", "Night Shift", "Noon Shift"]
