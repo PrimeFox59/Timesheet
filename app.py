@@ -42,8 +42,9 @@ def get_google_sheet_client(sheet_id):
         )
         st.stop()
     except gspread.exceptions.WorksheetNotFound as e:
+        # Simplified error message to prevent IndexError
         st.error(
-            f"**Error:** Worksheet '{e.args[0].split('worksheet: ')[1].split(' not found')[0]}' not found. "
+            f"**Error:** Worksheet not found: {e.args[0]}. "
             "Please ensure all required worksheets (user, presensi, audit_log, areas) exist in your Google Sheet."
         )
         st.stop()
