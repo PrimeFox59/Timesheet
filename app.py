@@ -20,7 +20,7 @@ scope = [
 
 key_dict = st.secrets["gcp_service_account"]
 creds = Credentials.from_service_account_info(key_dict, scopes=scope)
-SHEET_ID = "1BwwoNx3t3MBrsOB3H9BSxnWbYCwChwgl4t1HrpFYWpA"
+SHEET_ID = "1BwwoNx3t3MBrsOB3H9BSxnWbYCkChwgl4t1HrpFYWpA" # Pastikan ID ini benar
 
 @st.cache_resource(ttl=3600) # Cache connection for 1 hour (3600 seconds)
 def get_google_sheet_client(sheet_id):
@@ -35,9 +35,9 @@ def get_google_sheet_client(sheet_id):
             sheet_audit_log_obj = client.open_by_key(sheet_id).worksheet("audit_log")
         except gspread.exceptions.WorksheetNotFound:
             st.warning("`audit_log` sheet not found. Creating a new one. Please add headers manually if needed.")
-            sheet_audit_log_obj = client.open_by_key(sheet_id).add_worksheet(title="audit_log", rows="1000", cols="5")
+            sheet_audit_log_obj = client.open_by_key(sheet_id).add_worksheet(title="audit_log", rows="1000", cols="4") # 4 columns: Timestamp, Username, Activity Type, Details
             # You might want to add headers here programmatically if it's new
-            # sheet_audit_log_obj.append_row(["Timestamp", "User ID", "Username", "Activity Type", "Details"])
+            # sheet_audit_log_obj.append_row(["Timestamp", "Username", "Activity Type", "Details"])
 
 
         return client, sheet_user_obj.title, sheet_presensi_obj.title, sheet_audit_log_obj.title
@@ -72,18 +72,21 @@ def get_data_from_sheet(spreadsheet_id, worksheet_title):
         return pd.DataFrame()
 
 # --- Audit Trail Function ---
-def log_activity(username, activity_type, details): # Removed user_id
+def log_activity(username, activity_type, details):
     """Logs an activity to the audit_log Google Sheet."""
     try:
+        # Get the actual worksheet object (not cached, to ensure direct write)
         sheet_audit_log_actual = client.open_by_key(SHEET_ID).worksheet(sheet_audit_log_title)
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        row_data = [timestamp, str(username), activity_type, details] # Removed user_id from row_data
+        row_data = [timestamp, str(username), activity_type, details]
         sheet_audit_log_actual.append_row(row_data)
     except Exception as e:
         st.warning(f"Failed to log activity to audit_log sheet: {e}")
+        # Optionally, you might log this failure to Streamlit server logs or a separate file
+        # but don't stop the main application flow.
 
 # --- Helper Functions ---
-def check_login(username, password): # Changed from user_id to username
+def check_login(username, password):
     df_users = get_data_from_sheet(SHEET_ID, sheet_user_title) # Get user data
     
     # Filter by Username directly
@@ -120,7 +123,7 @@ def get_date_range(start, end):
     return pd.date_range(start=start, end=end).to_list()
 
 # --- Functions for User Settings ---
-def update_user_data_in_sheet(username, column_name, new_value): # Changed from user_id to username
+def update_user_data_in_sheet(username, column_name, new_value):
     """Updates a specific column for a user in the 'user' Google Sheet."""
     sheet_user_actual = client.open_by_key(SHEET_ID).worksheet(sheet_user_title)
     
@@ -176,18 +179,19 @@ if st.session_state.user is None:
         st.info("Your password has been changed. Please log in with your new password.")
         st.session_state.logged_out_after_password_change = False
 
-    username_input = st.text_input("Username") # Changed from User ID to Username
+    username_input = st.text_input("Username")
     password = st.text_input("Password", type="password")
     if st.button("Login"):
-        user = check_login(username_input, password) # Pass username_input
+        user = check_login(username_input, password)
         if user is not None:
             st.session_state.user = user
             st.success("Login successful!")
-            log_activity(user["Username"], "LOGIN", "User logged in successfully.") # Pass username
+            log_activity(user["Username"], "LOGIN", "User logged in successfully.")
             st.rerun()
         else:
-            st.error("❌ Incorrect Username or Password") # Updated message
-            log_activity(username_input, "N/A", "LOGIN_FAILED", "Incorrect Username or Password.") # Log failed attempts
+            st.error("❌ Incorrect Username or Password")
+            # --- Perbaikan di sini: Hapus argumen 'N/A' yang berlebihan ---
+            log_activity(username_input, "LOGIN_FAILED", "Incorrect Username or Password.")
     st.stop()
 
 
@@ -212,7 +216,7 @@ if st.sidebar.button("Logout"):
     current_username = st.session_state.user["Username"]
     st.session_state.user = None
     st.session_state.logged_out_after_password_change = False # Ensure this is reset on normal logout
-    log_activity(current_username, "LOGOUT", "User logged out.") # Pass username
+    log_activity(current_username, "LOGOUT", "User logged out.")
     st.rerun()
 
 # --- Tab Layout ---
@@ -379,14 +383,14 @@ with tab1:
                 get_data_from_sheet.clear() # Clear cache again after successful write
                 
                 # Log successful timesheet submission
-                log_activity(current_username, "TIMESHEET_SUBMIT", # Removed user_id
+                log_activity(current_username, "TIMESHEET_SUBMIT",
                              f"Submitted {len(final_data_to_submit)} entries for dates: {', '.join([d[1] for d in final_data_to_submit])}") # Changed index for date
                 
                 st.success("✅ Timesheet successfully submitted!")
                 st.rerun() # Refresh app to clear form and messages
             except Exception as e:
                 st.error(f"Error submitting timesheet: {e}")
-                log_activity(current_username, "TIMESHEET_SUBMIT_FAILED", # Removed user_id
+                log_activity(current_username, "TIMESHEET_SUBMIT_FAILED",
                              f"Failed to submit timesheet: {e}")
         elif not final_data_to_submit and not validation_errors and not duplicate_entries_found:
             st.info("💡 No new timesheet entries to submit (all might be duplicates or zero rows).")
@@ -448,7 +452,7 @@ with tab2:
         ]
 
     columns_to_display_all = [
-        "Username", # No Id here
+        "Username",
         "Date",
         "Day", "Hours", "Overtime",
         "Area 1", "Area 2", "Area 3", "Area 4",    
@@ -482,7 +486,7 @@ with tab3:
 
         if submit_password_change:
             df_users_latest = get_data_from_sheet(SHEET_ID, sheet_user_title)
-            user_row_latest = df_users_latest[df_users_latest['Username'].astype(str).str.lower() == str(current_username).lower()] # Filter by username
+            user_row_latest = df_users_latest[df_users_latest['Username'].astype(str).str.lower() == str(current_username).lower()]
             
             if user_row_latest.empty:
                 st.error("User not found for password change. Please try logging in again.")
@@ -512,7 +516,7 @@ with tab3:
                     st.warning("⚠️ New password cannot be empty.")
                     log_activity(current_username, "PASSWORD_CHANGE_FAILED", "New password cannot be empty.")
                 else:
-                    if update_user_data_in_sheet(current_username, "Password", new_password): # Pass username
+                    if update_user_data_in_sheet(current_username, "Password", new_password):
                         st.session_state.user = None
                         st.session_state.logged_out_after_password_change = True
                         st.success("✅ Password updated successfully! Please re-login with your new password.")
@@ -536,7 +540,7 @@ with tab3:
                     st.error(f"❌ Username '{new_username}' already exists. Please choose a different username.")
                     log_activity(current_username, "USERNAME_CHANGE_FAILED", f"Attempted to change to existing username '{new_username}'.")
                 else:
-                    if update_user_data_in_sheet(current_username, "Username", new_username): # Pass username
+                    if update_user_data_in_sheet(current_username, "Username", new_username):
                         st.session_state.user["Username"] = new_username
                         st.success(f"✅ Username updated to '{new_username}' successfully!")
                         log_activity(new_username, "USERNAME_CHANGE", f"Username changed from '{old_username}' to '{new_username}'.")
@@ -569,7 +573,7 @@ with tab3:
 
         if submit_priority_areas:
             new_preferred_areas_str = ", ".join(selected_areas)
-            if update_user_data_in_sheet(current_username, "Preferred Areas", new_preferred_areas_str): # Pass username
+            if update_user_data_in_sheet(current_username, "Preferred Areas", new_preferred_areas_str):
                 st.session_state.user["Preferred Areas"] = new_preferred_areas_str
                 st.success("✅ Priority Areas saved successfully!")
                 log_activity(current_username, "PREF_AREAS_CHANGE", f"Preferred Areas updated to: {new_preferred_areas_str}")
@@ -592,7 +596,7 @@ with tab3:
         submit_preferred_shift = st.form_submit_button("Save Preferred Shift")
 
         if submit_preferred_shift:
-            if update_user_data_in_sheet(current_username, "Preferred Shift", selected_shift): # Pass username
+            if update_user_data_in_sheet(current_username, "Preferred Shift", selected_shift):
                 st.session_state.user["Preferred Shift"] = selected_shift
                 st.success("✅ Preferred Shift saved successfully!")
                 log_activity(current_username, "PREF_SHIFT_CHANGE", f"Preferred Shift updated to: {selected_shift}")
