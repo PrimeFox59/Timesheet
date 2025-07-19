@@ -526,7 +526,7 @@ with tab3:
     all_area_opts = ["GCP", "ER", "ET", "SC", "SM", "SAP"]
 
     current_preferred_areas_str = st.session_state.user.get("Preferred Areas", "")
-    current_preferred_areas_list = [a.strip() for a a in current_preferred_areas_str.split(',') if a.strip()]
+    current_preferred_areas_list = [a.strip() for a in current_preferred_areas_str.split(',') if a.strip()]
     
     current_preferred_areas_list = [area for area in current_preferred_areas_list if area in all_area_opts]
 
