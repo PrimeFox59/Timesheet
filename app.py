@@ -214,8 +214,17 @@ with tab1:
     date_list = get_date_range(start_date, end_date)
     st.markdown(f"**Date Range:** {start_date.strftime('%d-%b-%Y')} ➜ {end_date.strftime('%d-%b-%Y')}")
 
-    shift_opts = ["Day Shift", "Night Shift", "Noon Shift"]
+    all_shift_opts = ["Day Shift", "Night Shift", "Noon Shift"]
     
+    # Get user's preferred shift from session state, defaulting to 'Day Shift'
+    user_preferred_shift = st.session_state.user.get("Preferred Shift", "Day Shift")
+    if user_preferred_shift not in all_shift_opts:
+        user_preferred_shift = "Day Shift" # Fallback if preferred shift is invalid
+
+    # Reorder shift options to put preferred shift first
+    shift_opts_ordered = [user_preferred_shift] + [s for s in all_shift_opts if s != user_preferred_shift]
+
+
     all_area_opts = ["GCP", "ER", "ET", "SC", "SM", "SAP"]
 
     user_preferred_areas_str = st.session_state.user.get("Preferred Areas", "")
@@ -239,7 +248,7 @@ with tab1:
             "Area 2": "",    
             "Area 3": "",    
             "Area 4": "",    
-            "Shift": "Day Shift",
+            "Shift": user_preferred_shift, # Use preferred shift as default
             "Remark": ""
         })
 
@@ -257,7 +266,7 @@ with tab1:
             "Area 2": st.column_config.SelectboxColumn("Area 2", options=[""] + area_opts, required=False, default="", help="Additional work area (optional)"),
             "Area 3": st.column_config.SelectboxColumn("Area 3", options=[""] + area_opts, required=False, default="", help="Additional work area (optional)"),
             "Area 4": st.column_config.SelectboxColumn("Area 4", options=[""] + area_opts, required=False, default="", help="Additional work area (optional)"),
-            "Shift": st.column_config.SelectboxColumn("Shift", options=shift_opts, required=True, default="Day Shift"),
+            "Shift": st.column_config.SelectboxColumn("Shift", options=shift_opts_ordered, required=True, default=user_preferred_shift),
             "Remark": st.column_config.TextColumn("Remarks", help="E.g., Day off / Travel"),
         },
         column_order=[
@@ -473,6 +482,29 @@ with tab3:
                 st.rerun()
             else:
                 st.error("Something went wrong during saving priority areas. Please try again.")
+
+    ---
+
+    st.subheader("Set Preferred Shift")
+    all_shift_opts = ["Day Shift", "Night Shift", "Noon Shift"]
+    current_preferred_shift = st.session_state.user.get("Preferred Shift", "Day Shift") # Default to "Day Shift" if not set
+
+    with st.form("set_preferred_shift_form", clear_on_submit=False):
+        selected_shift = st.selectbox(
+            "Select your most frequently used shift:",
+            options=all_shift_opts,
+            index=all_shift_opts.index(current_preferred_shift) if current_preferred_shift in all_shift_opts else 0,
+            help="This will set the default shift in the Timesheet form."
+        )
+        submit_preferred_shift = st.form_submit_button("Save Preferred Shift")
+
+        if submit_preferred_shift:
+            if update_user_data_in_sheet(current_user_id, "Preferred Shift", selected_shift):
+                st.session_state.user["Preferred Shift"] = selected_shift
+                st.success("✅ Preferred Shift saved successfully!")
+                st.rerun()
+            else:
+                st.error("Something went wrong during saving preferred shift. Please try again.")
 
 
 # --- Developer Credits ---
