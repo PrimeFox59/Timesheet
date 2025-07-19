@@ -198,7 +198,8 @@ if st.sidebar.button("Logout"):
     st.rerun()
 
 # --- Tab Layout ---
-tab1, tab2, tab3, tab4 = st.tabs(["📝 Timesheet Form", "📊 Activity Log", "⚙️ User Settings", "🔍 Audit Log"])
+# Changed the order of tabs here
+tab1, tab2, tab3, tab4 = st.tabs(["📝 Timesheet Form", "📊 Activity Log", "🔍 Audit Log", "⚙️ User Settings"])
 
 # --- Timesheet Tab ---
 with tab1:
@@ -458,8 +459,67 @@ with tab2:
     )
 
 
+# --- AUDIT TRAIL CHANGE: New Tab for Audit Log ---
+with tab3: # Moved to tab3
+    st.header("🔍 System Audit Log")
+    st.markdown("This log records significant actions performed within the application.")
+
+    df_audit_log = get_data_from_sheet(SHEET_ID, sheet_audit_log_title)
+
+    if not df_audit_log.empty:
+        expected_audit_cols = ["Timestamp", "User ID", "Username", "Action", "Description", "Status"]
+        for col in expected_audit_cols:
+            if col not in df_audit_log.columns:
+                st.warning(f"Audit log column '{col}' not found. Please ensure your 'audit_log' Google Sheet has the correct headers.")
+                break
+
+        if 'Timestamp' in df_audit_log.columns:
+            df_audit_log['Timestamp'] = pd.to_datetime(df_audit_log['Timestamp'], errors='coerce')
+            df_audit_log.dropna(subset=['Timestamp'], inplace=True)
+
+        st.subheader("Filter Audit Log")
+        col_audit_start, col_audit_end = st.columns(2)
+        with col_audit_start:
+            audit_start_date = st.date_input("Audit Log Start Date", datetime.today() - timedelta(days=30), key="audit_log_start_date")
+        with col_audit_end:
+            audit_end_date = st.date_input("Audit Log End Date", datetime.today(), key="audit_log_end_date")
+
+        df_filtered_audit_log = df_audit_log[
+            (df_audit_log['Timestamp'].dt.date >= audit_start_date) &
+            (df_audit_log['Timestamp'].dt.date <= audit_end_date)
+        ].copy()
+
+        col_audit_user, col_audit_action, col_audit_status = st.columns(3)
+        with col_audit_user:
+            all_audit_users = ["All"] + sorted(df_filtered_audit_log['Username'].unique().tolist())
+            selected_audit_user = st.selectbox("Filter by User", all_audit_users, key="selected_audit_user")
+        with col_audit_action:
+            all_audit_actions = ["All"] + sorted(df_filtered_audit_log['Action'].unique().tolist())
+            selected_audit_action = st.selectbox("Filter by Action", all_audit_actions, key="selected_audit_action")
+        with col_audit_status:
+            all_audit_statuses = ["All"] + sorted(df_filtered_audit_log['Status'].unique().tolist())
+            selected_audit_status = st.selectbox("Filter by Status", all_audit_statuses, key="selected_audit_status")
+
+        if selected_audit_user != "All":
+            df_filtered_audit_log = df_filtered_audit_log[df_filtered_audit_log['Username'] == selected_audit_user]
+        if selected_audit_action != "All":
+            df_filtered_audit_log = df_filtered_audit_log[df_filtered_audit_log['Action'] == selected_audit_action]
+        if selected_audit_status != "All":
+            df_filtered_audit_log = df_filtered_audit_log[df_filtered_audit_log['Status'] == selected_audit_status]
+
+        st.dataframe(
+            df_filtered_audit_log[expected_audit_cols]
+            .sort_values(by="Timestamp", ascending=False, na_position='last')
+            .reset_index(drop=True),
+            hide_index=True,
+            use_container_width=True
+        )
+    else:
+        st.info("No audit log entries found.")
+
+
 # --- User Settings Tab
-with tab3:
+with tab4: # Moved to tab4
     st.header("⚙️ User Settings")
     st.markdown("Here you can manage your account preferences.")
 
@@ -620,65 +680,6 @@ with tab3:
                 st.error("Something went wrong during saving area column preference. Please try again.")
                 log_audit_event(current_user_id, current_username, "Update User Preference", f"Failed to set number of Area columns to: {selected_num_areas}.", "Failed")
     # --- END OF NEW FEATURE: Set Number of Area Columns ---
-
-
-# --- AUDIT TRAIL CHANGE: New Tab for Audit Log ---
-with tab4:
-    st.header("🔍 System Audit Log")
-    st.markdown("This log records significant actions performed within the application.")
-
-    df_audit_log = get_data_from_sheet(SHEET_ID, sheet_audit_log_title)
-
-    if not df_audit_log.empty:
-        expected_audit_cols = ["Timestamp", "User ID", "Username", "Action", "Description", "Status"]
-        for col in expected_audit_cols:
-            if col not in df_audit_log.columns:
-                st.warning(f"Audit log column '{col}' not found. Please ensure your 'audit_log' Google Sheet has the correct headers.")
-                break
-
-        if 'Timestamp' in df_audit_log.columns:
-            df_audit_log['Timestamp'] = pd.to_datetime(df_audit_log['Timestamp'], errors='coerce')
-            df_audit_log.dropna(subset=['Timestamp'], inplace=True)
-
-        st.subheader("Filter Audit Log")
-        col_audit_start, col_audit_end = st.columns(2)
-        with col_audit_start:
-            audit_start_date = st.date_input("Audit Log Start Date", datetime.today() - timedelta(days=30), key="audit_log_start_date")
-        with col_audit_end:
-            audit_end_date = st.date_input("Audit Log End Date", datetime.today(), key="audit_log_end_date")
-
-        df_filtered_audit_log = df_audit_log[
-            (df_audit_log['Timestamp'].dt.date >= audit_start_date) &
-            (df_audit_log['Timestamp'].dt.date <= audit_end_date)
-        ].copy()
-
-        col_audit_user, col_audit_action, col_audit_status = st.columns(3)
-        with col_audit_user:
-            all_audit_users = ["All"] + sorted(df_filtered_audit_log['Username'].unique().tolist())
-            selected_audit_user = st.selectbox("Filter by User", all_audit_users, key="selected_audit_user")
-        with col_audit_action:
-            all_audit_actions = ["All"] + sorted(df_filtered_audit_log['Action'].unique().tolist())
-            selected_audit_action = st.selectbox("Filter by Action", all_audit_actions, key="selected_audit_action")
-        with col_audit_status:
-            all_audit_statuses = ["All"] + sorted(df_filtered_audit_log['Status'].unique().tolist())
-            selected_audit_status = st.selectbox("Filter by Status", all_audit_statuses, key="selected_audit_status")
-
-        if selected_audit_user != "All":
-            df_filtered_audit_log = df_filtered_audit_log[df_filtered_audit_log['Username'] == selected_audit_user]
-        if selected_audit_action != "All":
-            df_filtered_audit_log = df_filtered_audit_log[df_filtered_audit_log['Action'] == selected_audit_action]
-        if selected_audit_status != "All":
-            df_filtered_audit_log = df_filtered_audit_log[df_filtered_audit_log['Status'] == selected_audit_status]
-
-        st.dataframe(
-            df_filtered_audit_log[expected_audit_cols]
-            .sort_values(by="Timestamp", ascending=False, na_position='last')
-            .reset_index(drop=True),
-            hide_index=True,
-            use_container_width=True
-        )
-    else:
-        st.info("No audit log entries found.")
 
 
 # --- Developer Credits ---
