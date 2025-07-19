@@ -510,13 +510,39 @@ with tab2:
     col_filter_user, col_filter_shift, col_filter_area = st.columns(3)
 
     with col_filter_user:
-        # Check if 'Username' column exists before getting unique values
+        allowed_roles_for_all_users = ["Site Admin", "Commissioning Director"]
+        is_admin_or_director = st.session_state.user["Role"] in allowed_roles_for_all_users
+
         if 'Username' in df_filtered_all_log.columns:
-            all_usernames = ["All"] + sorted(df_filtered_all_log['Username'].unique().tolist())
+            all_usernames_options = sorted(df_filtered_all_log['Username'].unique().tolist())
         else:
-            all_usernames = ["All"]
+            all_usernames_options = []
             st.warning("Kolom 'Username' tidak ditemukan di log aktivitas.")
-        selected_username = st.selectbox("Filter by User", all_usernames)
+
+        if is_admin_or_director:
+            # Admins/Directors can see all users
+            select_options = ["All"] + all_usernames_options
+            default_index = 0 # Default to "All"
+            selected_username = st.selectbox(
+                "Filter by User",
+                options=select_options,
+                index=default_index,
+                key="filter_user_admin" # Unique key
+            )
+        else:
+            # Other users only see their own data
+            current_user_username = st.session_state.user["Username"]
+            select_options = [current_user_username]
+            default_index = 0 # Only option is their own username
+            selected_username = st.selectbox(
+                "Filter by User",
+                options=select_options,
+                index=default_index,
+                disabled=True, # Disable the selectbox
+                key="filter_user_restricted" # Unique key
+            )
+            # The filtering logic below will automatically pick up current_user_username
+            # because selected_username is set to it.
 
     with col_filter_shift:
         if 'Shift' in df_filtered_all_log.columns:
@@ -534,7 +560,9 @@ with tab2:
         all_areas_in_log = ["All"] + sorted(list(set(all_areas_in_log)))
         selected_area = st.selectbox("Filter by Area", all_areas_in_log)
 
-    if selected_username != "All":
+    # --- Filtering logic, now robust due to dynamic selected_username ---
+    if selected_username != "All": # This will correctly filter for admins (when "All" is not selected)
+                                  # and for non-admins (where selected_username is always their own username)
         df_filtered_all_log = df_filtered_all_log[df_filtered_all_log['Username'] == selected_username]
 
     if selected_shift != "All":
