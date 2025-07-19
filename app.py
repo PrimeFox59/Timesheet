@@ -26,10 +26,21 @@ SHEET_ID = "1BwwoNx3t3MBrsOB3H9BSxnWbYCwChwgl4t1HrpFYWpA"
 def get_google_sheet_client(sheet_id):
     try:
         client = gspread.authorize(creds)
+        # Get worksheet titles here
         sheet_user_obj = client.open_by_key(sheet_id).worksheet("user")
         sheet_presensi_obj = client.open_by_key(sheet_id).worksheet("presensi")
         
-        return client, sheet_user_obj.title, sheet_presensi_obj.title
+        # Try to get audit_log sheet, create if not exists (optional, but good for robustness)
+        try:
+            sheet_audit_log_obj = client.open_by_key(sheet_id).worksheet("audit_log")
+        except gspread.exceptions.WorksheetNotFound:
+            st.warning("`audit_log` sheet not found. Creating a new one. Please add headers manually if needed.")
+            sheet_audit_log_obj = client.open_by_key(sheet_id).add_worksheet(title="audit_log", rows="1000", cols="5")
+            # You might want to add headers here programmatically if it's new
+            # sheet_audit_log_obj.append_row(["Timestamp", "User ID", "Username", "Activity Type", "Details"])
+
+
+        return client, sheet_user_obj.title, sheet_presensi_obj.title, sheet_audit_log_obj.title
     except gspread.exceptions.SpreadsheetNotFound:
         st.error(
             "**Error:** Spreadsheet not found. "
@@ -43,41 +54,48 @@ def get_google_sheet_client(sheet_id):
                  "If it's a 503 error, try refreshing the app in a few moments.")
         st.stop()
 
-client, sheet_user_title, sheet_presensi_title = get_google_sheet_client(SHEET_ID)
+# Initialize client and sheet titles globally
+client, sheet_user_title, sheet_presensi_title, sheet_audit_log_title = get_google_sheet_client(SHEET_ID)
 
 
 @st.cache_data(ttl=600) # Cache data for 10 minutes (600 seconds)
 def get_data_from_sheet(spreadsheet_id, worksheet_title):
     try:
         worksheet = client.open_by_key(spreadsheet_id).worksheet(worksheet_title)
-        # Fetch all records and ensure 'Password' column is treated as string
         df = pd.DataFrame(worksheet.get_all_records())
+        # Ensure 'Password' column is treated as string and stripped for consistency
         if 'Password' in df.columns:
-            df['Password'] = df['Password'].astype(str).str.strip() # Strip whitespace
+            df['Password'] = df['Password'].astype(str).str.strip() 
         return df
     except Exception as e:
         st.error(f"Error fetching data from sheet '{worksheet_title}': {e}")
         return pd.DataFrame()
 
+# --- Audit Trail Function ---
+def log_activity(username, activity_type, details): # Removed user_id
+    """Logs an activity to the audit_log Google Sheet."""
+    try:
+        sheet_audit_log_actual = client.open_by_key(SHEET_ID).worksheet(sheet_audit_log_title)
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        row_data = [timestamp, str(username), activity_type, details] # Removed user_id from row_data
+        sheet_audit_log_actual.append_row(row_data)
+    except Exception as e:
+        st.warning(f"Failed to log activity to audit_log sheet: {e}")
 
 # --- Helper Functions ---
-def check_login(user_id, password):
+def check_login(username, password): # Changed from user_id to username
     df_users = get_data_from_sheet(SHEET_ID, sheet_user_title) # Get user data
     
-    user_row = df_users[df_users['Id'].astype(str) == str(user_id)]
+    # Filter by Username directly
+    user_row = df_users[df_users['Username'].astype(str).str.lower() == str(username).lower()]
     
     if user_row.empty:
         return None
 
-    # Ensure password from input is bytes
     password_bytes = password.encode('utf-8')
-    
-    # Get stored hash, ensure it's a string first, then encode to bytes
     stored_password_value = str(user_row.iloc[0]['Password']).strip()
     stored_hash_bytes = stored_password_value.encode('utf-8')
 
-    # Check if the stored value appears to be a bcrypt hash
-    # Bcrypt hashes start with '$2a$', '$2b$', or '$2y$'
     if stored_hash_bytes.startswith(b'$2a$') or stored_hash_bytes.startswith(b'$2b$') or stored_hash_bytes.startswith(b'$2y$'):
         try:
             if bcrypt.checkpw(password_bytes, stored_hash_bytes):
@@ -85,14 +103,10 @@ def check_login(user_id, password):
             else:
                 return None # Password mismatch
         except ValueError:
-            # Catch error if stored_hash_bytes is malformed bcrypt hash
             st.warning("Invalid hash format detected for existing password. Please contact support.")
             return None
     else:
         # Fallback for old plain text passwords (REMOVE THIS AFTER ALL PASSWORDS ARE HASHED)
-        # This fallback allows users with plain text passwords to still log in.
-        # Once all users have updated their passwords, you should remove this 'else' block
-        # for full bcrypt security.
         if password == stored_password_value:
             return user_row.iloc[0]
         else:
@@ -106,7 +120,7 @@ def get_date_range(start, end):
     return pd.date_range(start=start, end=end).to_list()
 
 # --- Functions for User Settings ---
-def update_user_data_in_sheet(user_id, column_name, new_value):
+def update_user_data_in_sheet(username, column_name, new_value): # Changed from user_id to username
     """Updates a specific column for a user in the 'user' Google Sheet."""
     sheet_user_actual = client.open_by_key(SHEET_ID).worksheet(sheet_user_title)
     
@@ -114,8 +128,8 @@ def update_user_data_in_sheet(user_id, column_name, new_value):
     df_users = pd.DataFrame(sheet_user_actual.get_all_records()) 
 
     try:
-        # Find the row index in the DataFrame (0-based)
-        df_row_index = df_users[df_users['Id'].astype(str) == str(user_id)].index[0]
+        # Find the row index in the DataFrame using Username
+        df_row_index = df_users[df_users['Username'].astype(str).str.lower() == str(username).lower()].index[0]
         
         # Get header for column index (1-based for gspread)
         header = sheet_user_actual.row_values(1)
@@ -128,7 +142,6 @@ def update_user_data_in_sheet(user_id, column_name, new_value):
 
         # Hash password if updating the 'Password' column
         if column_name == "Password":
-            # Ensure new_value is string, then encode to bytes for hashing
             new_value_bytes = str(new_value).encode('utf-8')
             hashed_password = bcrypt.hashpw(new_value_bytes, bcrypt.gensalt()).decode('utf-8')
             sheet_user_actual.update_cell(gsheet_row, col_index, hashed_password)
@@ -139,7 +152,7 @@ def update_user_data_in_sheet(user_id, column_name, new_value):
         get_data_from_sheet.clear() 
         return True
     except IndexError:
-        st.error(f"User with ID {user_id} not found in the 'user' sheet.")
+        st.error(f"User with Username {username} not found in the 'user' sheet.")
         return False
     except Exception as e:
         st.error(f"Failed to update {column_name}: {e}")
@@ -163,16 +176,18 @@ if st.session_state.user is None:
         st.info("Your password has been changed. Please log in with your new password.")
         st.session_state.logged_out_after_password_change = False
 
-    user_id = st.text_input("User ID")
+    username_input = st.text_input("Username") # Changed from User ID to Username
     password = st.text_input("Password", type="password")
     if st.button("Login"):
-        user = check_login(user_id, password)
+        user = check_login(username_input, password) # Pass username_input
         if user is not None:
             st.session_state.user = user
             st.success("Login successful!")
+            log_activity(user["Username"], "LOGIN", "User logged in successfully.") # Pass username
             st.rerun()
         else:
-            st.error("❌ Incorrect User ID or Password")
+            st.error("❌ Incorrect Username or Password") # Updated message
+            log_activity(username_input, "N/A", "LOGIN_FAILED", "Incorrect Username or Password.") # Log failed attempts
     st.stop()
 
 
@@ -194,8 +209,10 @@ st.sidebar.markdown("""
 """)
 
 if st.sidebar.button("Logout"):
+    current_username = st.session_state.user["Username"]
     st.session_state.user = None
     st.session_state.logged_out_after_password_change = False # Ensure this is reset on normal logout
+    log_activity(current_username, "LOGOUT", "User logged out.") # Pass username
     st.rerun()
 
 # --- Tab Layout ---
@@ -287,13 +304,12 @@ with tab1:
         validation_errors = []
         
         # Ambil data presensi terbaru dari sheet untuk pengecekan duplikasi
-        # Pastikan cache untuk data presensi bersih sebelum mengambil
-        get_data_from_sheet.clear() 
+        get_data_from_sheet.clear() # Ensure cache is cleared before fetching
         df_existing_presensi = get_data_from_sheet(SHEET_ID, sheet_presensi_title)
         
-        current_user_id = st.session_state.user["Id"]
+        current_username = st.session_state.user["Username"] # Use username directly
 
-        # Loop pertama untuk validasi dan identifikasi duplikasi
+        # Loop through edited_df for validation and duplication check
         for index, row in edited_df.iterrows():
             entry_date_str = row["Date"]
 
@@ -316,24 +332,21 @@ with tab1:
             if not row["Area 1"] or str(row["Area 1"]).strip() == "":
                 validation_errors.append(f"**Area 1** cannot be empty on Date: **{entry_date_str}**.")
 
-            # 4. Check for duplication (Id + Date)
+            # 4. Check for duplication (Username + Date)
             is_duplicate = df_existing_presensi[
-                (df_existing_presensi['Id'].astype(str) == str(current_user_id)) &
+                (df_existing_presensi['Username'].astype(str).str.lower() == str(current_username).lower()) & # Changed to Username
                 (df_existing_presensi['Date'].astype(str) == entry_date_str)
             ].empty is False
 
             if is_duplicate:
                 duplicate_entries_found.append(entry_date_str)
             else:
-                # Add to final_data_to_submit only if no validation errors for this specific row
-                # (This is implicitly handled by checking validation_errors globally later)
                 entry = {
-                    "Id": current_user_id,
-                    "Username": st.session_state.user["Username"],
+                    "Username": current_username, # Only Username
                     "Date": entry_date_str,
                     "Day": row["Day"],
-                    "Hours": hours, # Use the float value
-                    "Overtime": overtime, # Use the float value
+                    "Hours": hours,
+                    "Overtime": overtime,
                     "Area 1": row["Area 1"],
                     "Area 2": row["Area 2"],
                     "Area 3": row["Area 3"],
@@ -342,7 +355,7 @@ with tab1:
                     "Remark": row["Remark"],
                 }
                 final_data_to_submit.append([
-                    entry["Id"], entry["Username"], entry["Date"], entry["Day"],
+                    entry["Username"], entry["Date"], entry["Day"], # Changed here
                     entry["Hours"], entry["Overtime"],
                     entry["Area 1"], entry["Area 2"], entry["Area 3"], entry["Area 4"],
                     entry["Shift"], entry["Remark"]
@@ -353,12 +366,10 @@ with tab1:
             for error in validation_errors:
                 st.error(f"❗ Input Error: {error}")
             st.warning("Please correct the errors and resubmit.")
-            # Do not proceed with submission if there are validation errors
-            # (Implicitly handled by the next combined condition)
             
         # Display duplicate entry messages if any
         if duplicate_entries_found:
-            st.error(f"❌ Submission Failed: Timesheet for the following dates already exists for user {current_user_id}: **{', '.join(duplicate_entries_found)}**. Please edit existing entries via Activity Log if needed.")
+            st.error(f"❌ Submission Failed: Timesheet for the following dates already exists for user {current_username}: **{', '.join(duplicate_entries_found)}**. Please edit existing entries via Activity Log if needed.")
             
         # Only proceed to submit if NO validation errors AND NO duplicate entries AND there's data to submit
         if not validation_errors and not duplicate_entries_found and final_data_to_submit:
@@ -366,13 +377,18 @@ with tab1:
                 sheet_presensi_actual = client.open_by_key(SHEET_ID).worksheet(sheet_presensi_title)
                 sheet_presensi_actual.append_rows(final_data_to_submit)
                 get_data_from_sheet.clear() # Clear cache again after successful write
+                
+                # Log successful timesheet submission
+                log_activity(current_username, "TIMESHEET_SUBMIT", # Removed user_id
+                             f"Submitted {len(final_data_to_submit)} entries for dates: {', '.join([d[1] for d in final_data_to_submit])}") # Changed index for date
+                
                 st.success("✅ Timesheet successfully submitted!")
                 st.rerun() # Refresh app to clear form and messages
             except Exception as e:
                 st.error(f"Error submitting timesheet: {e}")
+                log_activity(current_username, "TIMESHEET_SUBMIT_FAILED", # Removed user_id
+                             f"Failed to submit timesheet: {e}")
         elif not final_data_to_submit and not validation_errors and not duplicate_entries_found:
-            # This condition handles cases where no new entries are generated due to all being duplicates
-            # or if the user submits an empty form range (though st.data_editor makes this less likely)
             st.info("💡 No new timesheet entries to submit (all might be duplicates or zero rows).")
 
 
@@ -418,7 +434,7 @@ with tab2:
         selected_area = st.selectbox("Filter by Area", all_areas_in_log)
 
     if selected_username != "All":
-        df_filtered_all_log = df_filtered_all_log[df_filtered_all_log['Username'] == selected_username]
+        df_filtered_all_log = df_filtered_all_log[df_filtered_all_log['Username'].astype(str).str.lower() == selected_username.lower()] # Filter by username
     
     if selected_shift != "All":
         df_filtered_all_log = df_filtered_all_log[df_filtered_all_log['Shift'] == selected_shift]
@@ -432,7 +448,7 @@ with tab2:
         ]
 
     columns_to_display_all = [
-        "Username",
+        "Username", # No Id here
         "Date",
         "Day", "Hours", "Overtime",
         "Area 1", "Area 2", "Area 3", "Area 4",    
@@ -455,8 +471,7 @@ with tab3:
     st.header("⚙️ User Settings")
     st.markdown("Here you can manage your account preferences.")
 
-    current_user_id = st.session_state.user["Id"]
-    current_username = st.session_state.user["Username"]
+    current_username = st.session_state.user["Username"] # Use username directly
     
     st.subheader("Change Password")
     with st.form("change_password_form", clear_on_submit=True):
@@ -467,42 +482,45 @@ with tab3:
 
         if submit_password_change:
             df_users_latest = get_data_from_sheet(SHEET_ID, sheet_user_title)
-            user_row_latest = df_users_latest[df_users_latest['Id'].astype(str) == str(current_user_id)]
+            user_row_latest = df_users_latest[df_users_latest['Username'].astype(str).str.lower() == str(current_username).lower()] # Filter by username
             
             if user_row_latest.empty:
                 st.error("User not found for password change. Please try logging in again.")
+                log_activity(current_username, "PASSWORD_CHANGE_FAILED", "User not found for password change.")
             else:
-                # Ensure stored_password_value is string and strip whitespace
                 stored_password_value = str(user_row_latest.iloc[0]['Password']).strip()
                 stored_hash_bytes = stored_password_value.encode('utf-8')
                 
-                # Check if old_password matches the current stored password
                 password_match = False
                 if stored_hash_bytes.startswith(b'$2a$') or stored_hash_bytes.startswith(b'$2b$') or stored_hash_bytes.startswith(b'$2y$'):
-                    # It's a bcrypt hash
                     try:
                         password_match = bcrypt.checkpw(old_password.encode('utf-8'), stored_hash_bytes)
                     except ValueError:
                         st.error("Error verifying current password. It might be corrupted.")
-                        password_match = False # Treat as non-match
+                        log_activity(current_username, "PASSWORD_CHANGE_FAILED", "Corrupted current password hash.")
+                        password_match = False
                 else:
-                    # It's a plain text password (TEMPORARY FALLBACK)
                     password_match = (old_password == stored_password_value)
 
                 if not password_match:
                     st.error("❌ Current password incorrect.")
+                    log_activity(current_username, "PASSWORD_CHANGE_FAILED", "Incorrect current password for change.")
                 elif new_password != confirm_new_password:
                     st.error("❌ New passwords do not match.")
+                    log_activity(current_username, "PASSWORD_CHANGE_FAILED", "New passwords do not match.")
                 elif not new_password:
                     st.warning("⚠️ New password cannot be empty.")
+                    log_activity(current_username, "PASSWORD_CHANGE_FAILED", "New password cannot be empty.")
                 else:
-                    if update_user_data_in_sheet(current_user_id, "Password", new_password):
+                    if update_user_data_in_sheet(current_username, "Password", new_password): # Pass username
                         st.session_state.user = None
                         st.session_state.logged_out_after_password_change = True
                         st.success("✅ Password updated successfully! Please re-login with your new password.")
+                        log_activity(current_username, "PASSWORD_CHANGE", "Password successfully changed.")
                         st.rerun()
                     else:
                         st.error("Something went wrong during password update. Please try again.")
+                        log_activity(current_username, "PASSWORD_CHANGE_FAILED", "Error during password update.")
 
     st.subheader("Change Username")
     with st.form("change_username_form", clear_on_submit=True):
@@ -511,16 +529,26 @@ with tab3:
 
         if submit_username_change:
             if new_username and new_username != current_username:
-                if update_user_data_in_sheet(current_user_id, "Username", new_username):
-                    st.session_state.user["Username"] = new_username
-                    st.success(f"✅ Username updated to '{new_username}' successfully!")
-                    st.rerun()
+                old_username = current_username
+                # Check if new_username already exists (to maintain uniqueness)
+                df_users_latest = get_data_from_sheet(SHEET_ID, sheet_user_title)
+                if not df_users_latest[df_users_latest['Username'].astype(str).str.lower() == str(new_username).lower()].empty:
+                    st.error(f"❌ Username '{new_username}' already exists. Please choose a different username.")
+                    log_activity(current_username, "USERNAME_CHANGE_FAILED", f"Attempted to change to existing username '{new_username}'.")
                 else:
-                    st.error("Something went wrong during username update. Please try again.")
+                    if update_user_data_in_sheet(current_username, "Username", new_username): # Pass username
+                        st.session_state.user["Username"] = new_username
+                        st.success(f"✅ Username updated to '{new_username}' successfully!")
+                        log_activity(new_username, "USERNAME_CHANGE", f"Username changed from '{old_username}' to '{new_username}'.")
+                        st.rerun()
+                    else:
+                        st.error("Something went wrong during username update. Please try again.")
+                        log_activity(old_username, "USERNAME_CHANGE_FAILED", "Error during username update.")
             elif new_username == current_username:
                 st.info("💡 Username is already the same. No change needed.")
             else:
                 st.warning("⚠️ Username cannot be empty.")
+                log_activity(current_username, "USERNAME_CHANGE_FAILED", "New username cannot be empty.")
 
     st.subheader("Set Priority Areas")
     all_area_opts = ["GCP", "ER", "ET", "SC", "SM", "SAP"]
@@ -541,12 +569,14 @@ with tab3:
 
         if submit_priority_areas:
             new_preferred_areas_str = ", ".join(selected_areas)
-            if update_user_data_in_sheet(current_user_id, "Preferred Areas", new_preferred_areas_str):
+            if update_user_data_in_sheet(current_username, "Preferred Areas", new_preferred_areas_str): # Pass username
                 st.session_state.user["Preferred Areas"] = new_preferred_areas_str
                 st.success("✅ Priority Areas saved successfully!")
+                log_activity(current_username, "PREF_AREAS_CHANGE", f"Preferred Areas updated to: {new_preferred_areas_str}")
                 st.rerun()
             else:
                 st.error("Something went wrong during saving priority areas. Please try again.")
+                log_activity(current_username, "PREF_AREAS_CHANGE_FAILED", "Error during preferred areas update.")
 
     st.subheader("Set Preferred Shift")
     all_shift_opts = ["Day Shift", "Night Shift", "Noon Shift"]
@@ -562,12 +592,14 @@ with tab3:
         submit_preferred_shift = st.form_submit_button("Save Preferred Shift")
 
         if submit_preferred_shift:
-            if update_user_data_in_sheet(current_user_id, "Preferred Shift", selected_shift):
+            if update_user_data_in_sheet(current_username, "Preferred Shift", selected_shift): # Pass username
                 st.session_state.user["Preferred Shift"] = selected_shift
                 st.success("✅ Preferred Shift saved successfully!")
+                log_activity(current_username, "PREF_SHIFT_CHANGE", f"Preferred Shift updated to: {selected_shift}")
                 st.rerun()
             else:
                 st.error("Something went wrong during saving preferred shift. Please try again.")
+                log_activity(current_username, "PREF_SHIFT_CHANGE_FAILED", "Error during preferred shift update.")
 
 
 # --- Developer Credits ---
