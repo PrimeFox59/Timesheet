@@ -320,6 +320,7 @@ st.sidebar.markdown("---")
 
 st.sidebar.markdown("""
 **Area Codes:**
+- **CMN**: Common Area
 - **GCP** / **SAP**: Acid Plant
 - **ER**: Electro Refinery
 - **ET**: ETP Effluent Treatment Plant
