@@ -30,13 +30,21 @@ def get_google_sheet_client(sheet_id):
         sheet_user_obj = client.open_by_key(sheet_id).worksheet("user")
         sheet_presensi_obj = client.open_by_key(sheet_id).worksheet("presensi")
         sheet_audit_log_obj = client.open_by_key(sheet_id).worksheet("audit_log")
+        # NEW: Areas sheet
+        sheet_areas_obj = client.open_by_key(sheet_id).worksheet("areas")
 
-        return client, sheet_user_obj.title, sheet_presensi_obj.title, sheet_audit_log_obj.title
+        return client, sheet_user_obj.title, sheet_presensi_obj.title, sheet_audit_log_obj.title, sheet_areas_obj.title
     except gspread.exceptions.SpreadsheetNotFound:
         st.error(
             "**Error:** Spreadsheet not found. "
             "Please double-check the `SHEET_ID` in your code. "
             "Also, ensure your service account (email in credential) has Editor access to this Google Sheet."
+        )
+        st.stop()
+    except gspread.exceptions.WorksheetNotFound as e:
+        st.error(
+            f"**Error:** Worksheet '{e.args[0].split('worksheet: ')[1].split(' not found')[0]}' not found. "
+            "Please ensure all required worksheets (user, presensi, audit_log, areas) exist in your Google Sheet."
         )
         st.stop()
     except Exception as e:
@@ -45,7 +53,7 @@ def get_google_sheet_client(sheet_id):
                  "If it's a 503 error, try refreshing the app in a few moments.")
         st.stop()
 
-client, sheet_user_title, sheet_presensi_title, sheet_audit_log_title = get_google_sheet_client(SHEET_ID)
+client, sheet_user_title, sheet_presensi_title, sheet_audit_log_title, sheet_areas_title = get_google_sheet_client(SHEET_ID)
 
 
 @st.cache_data(ttl=600) # Cache data for 10 minutes (600 seconds)
@@ -71,6 +79,15 @@ def get_data_from_sheet(spreadsheet_id, worksheet_title):
             for col in required_audit_cols:
                 if col not in df.columns:
                     st.warning(f"Audit log column '{col}' not found. Please ensure your 'audit_log' Google Sheet has the correct headers.")
+        
+        # NEW: Areas sheet column check
+        if worksheet_title == sheet_areas_title:
+            required_area_cols = ["AreaName"]
+            for col in required_area_cols:
+                if col not in df.columns:
+                    st.warning(f"Area sheet column '{col}' not found. Please ensure your 'areas' Google Sheet has the correct header ('AreaName').")
+                    # Return empty df if critical column is missing for areas to avoid errors
+                    return pd.DataFrame()
 
         if 'Password' in df.columns:
             df['Password'] = df['Password'].astype(str).str.strip() # Strip whitespace
@@ -163,6 +180,65 @@ def log_audit_event(user_id, username, action, description, status="Success"):
         get_data_from_sheet.clear()
     except Exception as e:
         st.error(f"Error logging audit event: {e}")
+
+# NEW: Function to add an area
+def add_area_to_sheet(area_name):
+    """Adds a new area to the 'areas' Google Sheet."""
+    try:
+        sheet_areas_actual = client.open_by_key(SHEET_ID).worksheet(sheet_areas_title)
+        
+        # Fetch current areas to check for duplicates (case-insensitive)
+        df_areas = get_data_from_sheet(SHEET_ID, sheet_areas_title)
+        if not df_areas.empty and 'AreaName' in df_areas.columns:
+            existing_areas_lower = df_areas['AreaName'].astype(str).str.strip().str.lower().tolist()
+            if area_name.strip().lower() in existing_areas_lower:
+                st.warning(f"Area '{area_name.strip()}' sudah ada.")
+                return False
+        
+        sheet_areas_actual.append_row([area_name.strip()])
+        get_data_from_sheet.clear() # Clear cache to refetch new data
+        st.success(f"Area '{area_name.strip()}' berhasil ditambahkan.")
+        return True
+    except gspread.exceptions.WorksheetNotFound:
+        st.error(f"Worksheet '{sheet_areas_title}' tidak ditemukan. Harap buat worksheet bernama '{sheet_areas_title}' dengan header 'AreaName'.")
+        return False
+    except Exception as e:
+        st.error(f"Error menambahkan area: {e}")
+        return False
+
+# NEW: Function to delete an area
+def delete_area_from_sheet(area_name):
+    """Deletes an area from the 'areas' Google Sheet."""
+    try:
+        sheet_areas_actual = client.open_by_key(SHEET_ID).worksheet(sheet_areas_title)
+        df_areas = get_data_from_sheet(SHEET_ID, sheet_areas_title)
+
+        if df_areas.empty or 'AreaName' not in df_areas.columns:
+            st.warning("Tidak ada data area untuk dihapus atau kolom 'AreaName' tidak ditemukan.")
+            return False
+
+        # Find row index (gspread is 1-indexed, headers are row 1)
+        row_to_delete_idx = -1
+        for i, val in enumerate(sheet_areas_actual.col_values(1)): # Assuming AreaName is in column 1
+            if val.strip() == area_name.strip():
+                row_to_delete_idx = i + 1 # Convert to 1-based index
+                break
+        
+        if row_to_delete_idx != -1 and row_to_delete_idx > 1: # Ensure not header row
+            sheet_areas_actual.delete_rows(row_to_delete_idx)
+            get_data_from_sheet.clear() # Clear cache to refetch new data
+            st.success(f"Area '{area_name.strip()}' berhasil dihapus.")
+            return True
+        else:
+            st.warning(f"Area '{area_name.strip()}' tidak ditemukan.")
+            return False
+    except gspread.exceptions.WorksheetNotFound:
+        st.error(f"Worksheet '{sheet_areas_title}' tidak ditemukan.")
+        return False
+    except Exception as e:
+        st.error(f"Error menghapus area: {e}")
+        return False
+
 
 # --- NEW: Function to copy text to clipboard ---
 def copy_to_clipboard_button(text_to_copy, button_label="Salin ke Clipboard"):
@@ -258,23 +334,25 @@ if st.sidebar.button("Logout"):
 
 # --- Tab Layout ---
 # Determine which tabs to show based on user role
-allowed_roles_for_restricted_tabs = ["Site Admin", "Commissioning Director"]
-show_audit_log_tab = st.session_state.user["Role"] in allowed_roles_for_restricted_tabs
+allowed_roles_for_audit_log_tab = ["Site Admin", "Commissioning Director"]
+show_audit_log_tab = st.session_state.user["Role"] in allowed_roles_for_audit_log_tab
 
-all_possible_tabs_names = ["📝 Timesheet Form", "📊 Activity Log", "🔍 Audit Log", "⚙️ User Settings"]
+allowed_roles_for_master_edit_tab = ["Site Admin"] # Only Site Admin for Master Edit
+show_master_edit_tab = st.session_state.user["Role"] in allowed_roles_for_master_edit_tab
 
-# Filter tabs based on role
-displayed_tab_names = []
-for tab_name in all_possible_tabs_names:
-    if tab_name == "🔍 Audit Log" and not show_audit_log_tab:
-        continue
-    displayed_tab_names.append(tab_name)
+
+all_possible_tabs_names = ["📝 Timesheet Form", "📊 Activity Log"]
+if show_audit_log_tab:
+    all_possible_tabs_names.append("🔍 Audit Log")
+if show_master_edit_tab:
+    all_possible_tabs_names.append("🛠️ Master Edit") # New tab for Master Edit
+all_possible_tabs_names.append("⚙️ User Settings")
 
 # Create tabs dynamically
-tabs_objects = st.tabs(displayed_tab_names)
+tabs_objects = st.tabs(all_possible_tabs_names)
 
 # Map tab names to their actual tab objects for consistent access
-tab_map = {name: obj for name, obj in zip(displayed_tab_names, tabs_objects)}
+tab_map = {name: obj for name, obj in zip(all_possible_tabs_names, tabs_objects)}
 
 
 # --- Timesheet Tab ---
@@ -301,8 +379,15 @@ with tab_map["📝 Timesheet Form"]:
 
     shift_opts_ordered = [user_preferred_shift] + [s for s in all_shift_opts if s != user_preferred_shift]
 
+    # NEW: Fetch areas from Google Sheet
+    df_areas = get_data_from_sheet(SHEET_ID, sheet_areas_title)
+    if not df_areas.empty and 'AreaName' in df_areas.columns:
+        all_area_opts = df_areas['AreaName'].astype(str).tolist()
+    else:
+        # Fallback to hardcoded if sheet is empty or column missing
+        all_area_opts = ["GCP", "ER", "ET", "SC", "SM", "SAP"]
+        st.warning(f"Tidak dapat memuat daftar area dari sheet '{sheet_areas_title}'. Menggunakan daftar default.")
 
-    all_area_opts = ["GCP", "ER", "ET", "SC", "SM", "SAP"]
 
     user_preferred_areas_str = st.session_state.user.get("Preferred Areas", "")
     if user_preferred_areas_str:
@@ -709,6 +794,101 @@ if show_audit_log_tab: # This block is now conditional
         else:
             st.info("No audit log entries found.")
 
+# --- NEW: Master Edit Tab (Site Admin only) ---
+if show_master_edit_tab:
+    with tab_map["🛠️ Master Edit"]:
+        st.header("🛠️ Master Edit (Site Admin Only)")
+        st.markdown("Manage system-wide configurations and user accounts.")
+
+        current_user_id = st.session_state.user["Id"]
+        current_username = st.session_state.user["Username"]
+
+        st.subheader("Manage Areas")
+        
+        # Display current areas
+        df_areas_current = get_data_from_sheet(SHEET_ID, sheet_areas_title)
+        if not df_areas_current.empty and 'AreaName' in df_areas_current.columns:
+            st.write("Current Areas:")
+            st.dataframe(df_areas_current[['AreaName']].rename(columns={'AreaName': 'Available Areas'}), hide_index=True, use_container_width=True)
+            current_area_names = df_areas_current['AreaName'].astype(str).tolist()
+        else:
+            st.info(f"Tidak ada area yang ditemukan di sheet '{sheet_areas_title}'.")
+            current_area_names = []
+
+        # Add New Area Form
+        with st.form("add_area_form", clear_on_submit=True):
+            new_area_name = st.text_input("New Area Name", help="Enter a new area name (e.g., 'Refinery')")
+            submit_add_area = st.form_submit_button("Add Area")
+            if submit_add_area:
+                if new_area_name:
+                    add_area_to_sheet(new_area_name)
+                    log_audit_event(current_user_id, current_username, "Master Edit - Add Area", f"Added new area: {new_area_name}.")
+                    st.rerun()
+                else:
+                    st.warning("Nama area tidak boleh kosong.")
+
+        # Delete Area Form
+        if current_area_names:
+            with st.form("delete_area_form", clear_on_submit=True):
+                area_to_delete = st.selectbox("Select Area to Delete", options=[""] + current_area_names, key="area_to_delete_select")
+                submit_delete_area = st.form_submit_button("Delete Selected Area")
+                if submit_delete_area:
+                    if area_to_delete:
+                        confirm_delete = st.warning(f"Apakah Anda yakin ingin menghapus area '{area_to_delete}'? Ini akan menghapus permanen.")
+                        # This simple confirmation doesn't block submission. A proper double-confirmation
+                        # would need an extra button and state management.
+                        # For now, relying on the warning.
+                        if delete_area_from_sheet(area_to_delete):
+                            log_audit_event(current_user_id, current_username, "Master Edit - Delete Area", f"Deleted area: {area_to_delete}.")
+                            st.rerun()
+                    else:
+                        st.warning("Pilih area yang akan dihapus.")
+        else:
+            st.info("Tidak ada area untuk dihapus.")
+
+
+        st.subheader("Manage User Passwords")
+        df_all_users = get_data_from_sheet(SHEET_ID, sheet_user_title)
+
+        if not df_all_users.empty and 'Id' in df_all_users.columns and 'Username' in df_all_users.columns:
+            user_options = {f"{row['Username']} (ID: {row['Id']})": row['Id'] for idx, row in df_all_users.iterrows()}
+            selected_user_display = st.selectbox(
+                "Select User to Manage",
+                options=[""] + list(user_options.keys()),
+                key="select_user_to_manage"
+            )
+            
+            selected_user_id_to_manage = None
+            if selected_user_display:
+                selected_user_id_to_manage = user_options.get(selected_user_display)
+
+            if selected_user_id_to_manage:
+                st.info(f"Mengelola pengguna: {selected_user_display}")
+
+                with st.form("reset_password_form", clear_on_submit=True):
+                    new_password_other = st.text_input("New Password", type="password", key="new_pass_other")
+                    confirm_new_password_other = st.text_input("Confirm New Password", type="password", key="confirm_new_pass_other")
+                    submit_reset_password = st.form_submit_button(f"Reset Password for {selected_user_display}")
+
+                    if submit_reset_password:
+                        if not new_password_other:
+                            st.warning("Password baru tidak boleh kosong.")
+                        elif new_password_other != confirm_new_password_other:
+                            st.error("Password baru tidak cocok.")
+                        else:
+                            if update_user_data_in_sheet(selected_user_id_to_manage, "Password", new_password_other):
+                                st.success(f"✅ Password untuk {selected_user_display} berhasil diubah.")
+                                log_audit_event(current_user_id, current_username, "Master Edit - User Password Reset", f"Reset password for user ID: {selected_user_id_to_manage} ({selected_user_display.split(' (ID:')[0]}).")
+                            else:
+                                st.error(f"Gagal mengubah password untuk {selected_user_display}.")
+                                log_audit_event(current_user_id, current_username, "Master Edit - User Password Reset", f"Failed to reset password for user ID: {selected_user_id_to_manage}.", "Failed")
+            else:
+                st.info("Pilih pengguna dari daftar untuk mengelola.")
+        else:
+            st.warning("Tidak ada data pengguna ditemukan.")
+        
+        st.info("Catatan: Untuk menjaga integritas data historis, ID pengguna tidak dapat diubah melalui aplikasi ini.")
+
 
 # --- User Settings Tab
 with tab_map["⚙️ User Settings"]:
@@ -790,17 +970,24 @@ with tab_map["⚙️ User Settings"]:
                 log_audit_event(current_user_id, current_username, "Username Change", "Failed: Username cannot be empty.")
 
     st.subheader("Set Priority Areas")
-    all_area_opts = ["GCP", "ER", "ET", "SC", "SM", "SAP"]
+    # NEW: Use all_area_opts from dynamic list
+    df_areas_select = get_data_from_sheet(SHEET_ID, sheet_areas_title)
+    if not df_areas_select.empty and 'AreaName' in df_areas_select.columns:
+        all_area_opts_for_select = df_areas_select['AreaName'].astype(str).tolist()
+    else:
+        all_area_opts_for_select = ["GCP", "ER", "ET", "SC", "SM", "SAP"]
+        st.warning("Could not load area list for 'Set Priority Areas'. Using default.")
+
 
     current_preferred_areas_str = st.session_state.user.get("Preferred Areas", "")
     current_preferred_areas_list = [a.strip() for a in current_preferred_areas_str.split(',') if a.strip()]
 
-    current_preferred_areas_list = [area for area in current_preferred_areas_list if area in all_area_opts]
+    current_preferred_areas_list = [area for area in current_preferred_areas_list if area in all_area_opts_for_select]
 
     with st.form("set_priority_areas_form", clear_on_submit=False):
         selected_areas = st.multiselect(
             "Select and order your frequently used areas (drag to reorder):",
-            options=all_area_opts,
+            options=all_area_opts_for_select,
             default=current_preferred_areas_list,
             help="The order you select here will determine the default order in the Timesheet form's 'Area 1' dropdown."
         )
