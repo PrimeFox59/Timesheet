@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import gspread
 from google.oauth2.service_account import Credentials
 import bcrypt
+import streamlit.components.v1 as components # Import for custom HTML/JS
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -52,6 +53,17 @@ def get_data_from_sheet(spreadsheet_id, worksheet_title):
     try:
         worksheet = client.open_by_key(spreadsheet_id).worksheet(worksheet_title)
         df = pd.DataFrame(worksheet.get_all_records())
+        
+        # --- Robustness check for crucial columns ---
+        if worksheet_title == sheet_presensi_title:
+            required_presensi_cols = ['Id', 'Date', 'Hours', 'Overtime', 'Area 1', 'Shift']
+            for col in required_presensi_cols:
+                if col not in df.columns:
+                    st.warning(f"Kolom '{col}' tidak ditemukan di sheet '{worksheet_title}'. Pastikan header sudah benar.")
+                    # Optionally, you might want to return an empty DataFrame or raise an error
+                    # if a critical column is missing to prevent further errors.
+                    # For now, we'll continue, but the KeyError will occur later if 'Id' is truly missing.
+
         if 'Password' in df.columns:
             df['Password'] = df['Password'].astype(str).str.strip() # Strip whitespace
         # Convert 'Number of Areas' to int, handle potential missing column or non-numeric
@@ -144,6 +156,42 @@ def log_audit_event(user_id, username, action, description, status="Success"):
     except Exception as e:
         st.error(f"Error logging audit event: {e}")
 
+# --- NEW: Function to copy text to clipboard ---
+def copy_to_clipboard_button(text_to_copy, button_label="Salin ke Clipboard"):
+    """
+    Menampilkan tombol yang menyalin teks ke clipboard saat diklik.
+    """
+    # JavaScript untuk menyalin teks ke clipboard
+    # Perhatikan penggantian karakter khusus untuk keamanan JavaScript string
+    escaped_text = text_to_copy.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")
+
+    js_code = f"""
+    <script>
+    function copyTextToClipboard(text) {{
+        navigator.clipboard.writeText(text).then(function() {{
+            alert('Teks berhasil disalin!');
+        }}).catch(function(err) {{
+            console.error('Tidak dapat menyalin teks: ', err);
+            alert('Gagal menyalin teks. Pastikan browser Anda mengizinkan akses clipboard dan coba lagi.');
+        }});
+    }}
+    </script>
+    <button onclick="copyTextToClipboard('{escaped_text}')" style="
+        background-color: #4CAF50; /* Green */
+        border: none;
+        color: white;
+        padding: 10px 20px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+        margin: 4px 2px;
+        cursor: pointer;
+        border-radius: 8px;
+    ">{button_label}</button>
+    """
+    components.html(js_code, height=50) # height bisa disesuaikan
+
 # --- Session State for Login ---
 if "user" not in st.session_state:
     st.session_state.user = None
@@ -169,9 +217,11 @@ if st.session_state.user is None:
         if user is not None:
             st.session_state.user = user
             st.success("Login successful!")
+            log_audit_event(user_id, user["Username"], "Login", "Successful login.")
             st.rerun()
         else:
             st.error("❌ Incorrect User ID or Password")
+            log_audit_event(user_id, "N/A", "Login", "Failed login attempt (incorrect credentials).", "Failed")
     st.stop()
 
 
@@ -193,12 +243,12 @@ st.sidebar.markdown("""
 """)
 
 if st.sidebar.button("Logout"):
+    log_audit_event(st.session_state.user["Id"], st.session_state.user["Username"], "Logout", "User logged out.")
     st.session_state.user = None
     st.session_state.logged_out_after_password_change = False
     st.rerun()
 
 # --- Tab Layout ---
-# Changed the order of tabs here
 tab1, tab2, tab3, tab4 = st.tabs(["📝 Timesheet Form", "📊 Activity Log", "🔍 Audit Log", "⚙️ User Settings"])
 
 # --- Timesheet Tab ---
@@ -323,6 +373,12 @@ with tab1:
             if not row["Area 1"] or str(row["Area 1"]).strip() == "":
                 validation_errors.append(f"**Area 1** cannot be empty on Date: **{entry_date_str}**.")
 
+            # Ensure 'Id' column exists in df_existing_presensi before filtering
+            if 'Id' not in df_existing_presensi.columns:
+                st.error("Error: Kolom 'Id' tidak ditemukan di data presensi yang ada. Pastikan header di Google Sheet 'presensi' sudah benar.")
+                validation_errors.append("Critical Error: Missing 'Id' column in existing timesheet data.")
+                break # Stop processing to prevent further errors
+
             is_duplicate = df_existing_presensi[
                 (df_existing_presensi['Id'].astype(str) == str(current_user_id)) &
                 (df_existing_presensi['Date'].astype(str) == entry_date_str)
@@ -374,6 +430,32 @@ with tab1:
                 st.success("✅ Timesheet successfully submitted!")
                 log_audit_event(current_user_id, current_username, "Timesheet Submission",
                                 f"Successfully submitted timesheet for dates: {', '.join([entry[2] for entry in final_data_to_submit])}.")
+
+                # --- NEW: "Klik me and paste to your email" feature ---
+                st.subheader("Bagikan Konfirmasi Timesheet")
+                summary_text = f"Halo,\n\nSaya, {current_username} (ID: {current_user_id}), telah berhasil mengisi timesheet untuk periode {start_date.strftime('%d-%b-%Y')} hingga {end_date.strftime('%d-%b-%Y')}.\n\nTotal entri baru: {len(final_data_to_submit)}.\n\nTerima kasih atas perhatiannya."
+
+                st.text_area("Konten Konfirmasi untuk Dibagikan:", summary_text, height=150, disabled=True)
+                
+                col_copy, col_email = st.columns([0.3, 0.7])
+                with col_copy:
+                    copy_to_clipboard_button(summary_text, "Salin ke Clipboard")
+                
+                with col_email:
+                    # Construct mailto link
+                    import urllib.parse
+                    # Ganti dengan email penerima default yang sesuai (misal: supervisor atau HR)
+                    recipient_email = "your.supervisor@example.com"
+                    email_subject = f"Konfirmasi Timesheet {current_username} ({start_date.strftime('%d-%m-%Y')} - {end_date.strftime('%d-%m-%Y')})"
+                    
+                    encoded_subject = urllib.parse.quote(email_subject)
+                    encoded_body = urllib.parse.quote(summary_text + "\n\n(Dikirim otomatis dari aplikasi timesheet)")
+                    mailto_link = f"mailto:{recipient_email}?subject={encoded_subject}&body={encoded_body}"
+                    
+                    st.markdown(f"[Klik untuk Kirim Email Otomatis]({mailto_link})")
+                    st.caption("Ini akan membuka aplikasi email default Anda dengan draf email yang sudah terisi.")
+                # --- END NEW FEATURE ---
+
                 st.rerun()
             except Exception as e:
                 st.error(f"Error submitting timesheet: {e}")
@@ -411,11 +493,20 @@ with tab2:
     col_filter_user, col_filter_shift, col_filter_area = st.columns(3)
 
     with col_filter_user:
-        all_usernames = ["All"] + sorted(df_filtered_all_log['Username'].unique().tolist())
+        # Check if 'Username' column exists before getting unique values
+        if 'Username' in df_filtered_all_log.columns:
+            all_usernames = ["All"] + sorted(df_filtered_all_log['Username'].unique().tolist())
+        else:
+            all_usernames = ["All"]
+            st.warning("Kolom 'Username' tidak ditemukan di log aktivitas.")
         selected_username = st.selectbox("Filter by User", all_usernames)
 
     with col_filter_shift:
-        all_shifts = ["All"] + sorted(df_filtered_all_log['Shift'].unique().tolist())
+        if 'Shift' in df_filtered_all_log.columns:
+            all_shifts = ["All"] + sorted(df_filtered_all_log['Shift'].unique().tolist())
+        else:
+            all_shifts = ["All"]
+            st.warning("Kolom 'Shift' tidak ditemukan di log aktivitas.")
         selected_shift = st.selectbox("Filter by Shift", all_shifts)
 
     with col_filter_area:
@@ -434,10 +525,10 @@ with tab2:
 
     if selected_area != "All":
         df_filtered_all_log = df_filtered_all_log[
-            (df_filtered_all_log['Area 1'] == selected_area) |
-            (df_filtered_all_log['Area 2'] == selected_area) |
-            (df_filtered_all_log['Area 3'] == selected_area) |
-            (df_filtered_all_log['Area 4'] == selected_area)
+            (df_filtered_all_log.get('Area 1', pd.Series()) == selected_area) | # Using .get() for robustness
+            (df_filtered_all_log.get('Area 2', pd.Series()) == selected_area) |
+            (df_filtered_all_log.get('Area 3', pd.Series()) == selected_area) |
+            (df_filtered_all_log.get('Area 4', pd.Series()) == selected_area)
         ]
 
     columns_to_display_all = [
@@ -468,15 +559,20 @@ with tab3: # Moved to tab3
 
     if not df_audit_log.empty:
         expected_audit_cols = ["Timestamp", "User ID", "Username", "Action", "Description", "Status"]
+        # Filter df_audit_log to only include columns that are in expected_audit_cols AND exist in the DataFrame
+        df_audit_log_display = df_audit_log[[col for col in expected_audit_cols if col in df_audit_log.columns]]
+        
+        # Check if any expected columns are missing
         for col in expected_audit_cols:
             if col not in df_audit_log.columns:
                 st.warning(f"Audit log column '{col}' not found. Please ensure your 'audit_log' Google Sheet has the correct headers.")
-                break
-
-        if 'Timestamp' in df_audit_log.columns:
-            df_audit_log['Timestamp'] = pd.to_datetime(df_audit_log['Timestamp'], errors='coerce')
-            df_audit_log.dropna(subset=['Timestamp'], inplace=True)
-
+                
+        if 'Timestamp' in df_audit_log_display.columns:
+            df_audit_log_display['Timestamp'] = pd.to_datetime(df_audit_log_display['Timestamp'], errors='coerce')
+            df_audit_log_display.dropna(subset=['Timestamp'], inplace=True)
+        else:
+            st.warning("Kolom 'Timestamp' tidak ditemukan di audit log.")
+            
         st.subheader("Filter Audit Log")
         col_audit_start, col_audit_end = st.columns(2)
         with col_audit_start:
@@ -484,20 +580,32 @@ with tab3: # Moved to tab3
         with col_audit_end:
             audit_end_date = st.date_input("Audit Log End Date", datetime.today(), key="audit_log_end_date")
 
-        df_filtered_audit_log = df_audit_log[
-            (df_audit_log['Timestamp'].dt.date >= audit_start_date) &
-            (df_audit_log['Timestamp'].dt.date <= audit_end_date)
-        ].copy()
+        if 'Timestamp' in df_audit_log_display.columns:
+            df_filtered_audit_log = df_audit_log_display[
+                (df_audit_log_display['Timestamp'].dt.date >= audit_start_date) &
+                (df_audit_log_display['Timestamp'].dt.date <= audit_end_date)
+            ].copy()
+        else:
+            df_filtered_audit_log = df_audit_log_display.copy() # No date filtering possible
 
         col_audit_user, col_audit_action, col_audit_status = st.columns(3)
         with col_audit_user:
-            all_audit_users = ["All"] + sorted(df_filtered_audit_log['Username'].unique().tolist())
+            if 'Username' in df_filtered_audit_log.columns:
+                all_audit_users = ["All"] + sorted(df_filtered_audit_log['Username'].unique().tolist())
+            else:
+                all_audit_users = ["All"]
             selected_audit_user = st.selectbox("Filter by User", all_audit_users, key="selected_audit_user")
         with col_audit_action:
-            all_audit_actions = ["All"] + sorted(df_filtered_audit_log['Action'].unique().tolist())
+            if 'Action' in df_filtered_audit_log.columns:
+                all_audit_actions = ["All"] + sorted(df_filtered_audit_log['Action'].unique().tolist())
+            else:
+                all_audit_actions = ["All"]
             selected_audit_action = st.selectbox("Filter by Action", all_audit_actions, key="selected_audit_action")
         with col_audit_status:
-            all_audit_statuses = ["All"] + sorted(df_filtered_audit_log['Status'].unique().tolist())
+            if 'Status' in df_filtered_audit_log.columns:
+                all_audit_statuses = ["All"] + sorted(df_filtered_audit_log['Status'].unique().tolist())
+            else:
+                all_audit_statuses = ["All"]
             selected_audit_status = st.selectbox("Filter by Status", all_audit_statuses, key="selected_audit_status")
 
         if selected_audit_user != "All":
@@ -508,7 +616,7 @@ with tab3: # Moved to tab3
             df_filtered_audit_log = df_filtered_audit_log[df_filtered_audit_log['Status'] == selected_audit_status]
 
         st.dataframe(
-            df_filtered_audit_log[expected_audit_cols]
+            df_filtered_audit_log
             .sort_values(by="Timestamp", ascending=False, na_position='last')
             .reset_index(drop=True),
             hide_index=True,
