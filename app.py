@@ -60,9 +60,17 @@ def get_data_from_sheet(spreadsheet_id, worksheet_title):
             for col in required_presensi_cols:
                 if col not in df.columns:
                     st.warning(f"Kolom '{col}' tidak ditemukan di sheet '{worksheet_title}'. Pastikan header sudah benar.")
-                    # Optionally, you might want to return an empty DataFrame or raise an error
-                    # if a critical column is missing to prevent further errors.
-                    # For now, we'll continue, but the KeyError will occur later if 'Id' is truly missing.
+                    # If 'Id' is missing from presensi sheet, subsequent operations will fail.
+                    # It's better to explicitly check and return an empty DataFrame or halt.
+                    if col == 'Id': # Added specific check for 'Id' as it's critical for filtering
+                         st.error("Error fatal: Kolom 'Id' tidak ditemukan di Google Sheet 'presensi'. Harap perbaiki header sheet Anda.")
+                         return pd.DataFrame() # Return empty to prevent further errors
+        
+        if worksheet_title == sheet_audit_log_title:
+            required_audit_cols = ["Timestamp", "User ID", "Username", "Action", "Description", "Status"]
+            for col in required_audit_cols:
+                if col not in df.columns:
+                    st.warning(f"Audit log column '{col}' not found. Please ensure your 'audit_log' Google Sheet has the correct headers.")
 
         if 'Password' in df.columns:
             df['Password'] = df['Password'].astype(str).str.strip() # Strip whitespace
@@ -351,62 +359,70 @@ with tab1:
         get_data_from_sheet.clear()
         df_existing_presensi = get_data_from_sheet(SHEET_ID, sheet_presensi_title)
 
+        # Check if df_existing_presensi is empty or crucial columns are missing before proceeding
+        if df_existing_presensi.empty:
+            st.info("Tidak ada data timesheet yang ada di Google Sheet untuk perbandingan duplikat.")
+        elif 'Id' not in df_existing_presensi.columns:
+            st.error("Error: Kolom 'Id' tidak ditemukan di data presensi yang ada. Pastikan header di Google Sheet 'presensi' sudah benar.")
+            validation_errors.append("Critical Error: Missing 'Id' column in existing timesheet data.")
+        elif 'Date' not in df_existing_presensi.columns:
+            st.error("Error: Kolom 'Date' tidak ditemukan di data presensi yang ada. Pastikan header di Google Sheet 'presensi' sudah benar.")
+            validation_errors.append("Critical Error: Missing 'Date' column in existing timesheet data.")
+
         current_user_id = st.session_state.user["Id"]
         current_username = st.session_state.user["Username"]
 
-        for index, row in edited_df.iterrows():
-            entry_date_str = row["Date"]
+        if not validation_errors: # Only proceed if no critical column errors
+            for index, row in edited_df.iterrows():
+                entry_date_str = row["Date"]
 
-            hours = 0.0
-            overtime = 0.0
-            try:
-                hours = float(row["Hours"])
-                overtime = float(row["Overtime"])
-                if hours < 0 or overtime < 0:
-                    validation_errors.append(f"Hours or Overtime cannot be negative on Date: **{entry_date_str}**.")
-            except ValueError:
-                validation_errors.append(f"Invalid numeric input for Hours or Overtime on Date: **{entry_date_str}**.")
+                hours = 0.0
+                overtime = 0.0
+                try:
+                    hours = float(row["Hours"])
+                    overtime = float(row["Overtime"])
+                    if hours < 0 or overtime < 0:
+                        validation_errors.append(f"Hours or Overtime cannot be negative on Date: **{entry_date_str}**.")
+                except ValueError:
+                    validation_errors.append(f"Invalid numeric input for Hours or Overtime on Date: **{entry_date_str}**.")
 
-            if (hours + overtime) > 24.01:
-                validation_errors.append(f"Total hours (Working Hours + Overtime) on Date: **{entry_date_str}** exceeds 24 hours. Please correct.")
+                if (hours + overtime) > 24.01:
+                    validation_errors.append(f"Total hours (Working Hours + Overtime) on Date: **{entry_date_str}** exceeds 24 hours. Please correct.")
 
-            if not row["Area 1"] or str(row["Area 1"]).strip() == "":
-                validation_errors.append(f"**Area 1** cannot be empty on Date: **{entry_date_str}**.")
+                if not row["Area 1"] or str(row["Area 1"]).strip() == "":
+                    validation_errors.append(f"**Area 1** cannot be empty on Date: **{entry_date_str}**.")
 
-            # Ensure 'Id' column exists in df_existing_presensi before filtering
-            if 'Id' not in df_existing_presensi.columns:
-                st.error("Error: Kolom 'Id' tidak ditemukan di data presensi yang ada. Pastikan header di Google Sheet 'presensi' sudah benar.")
-                validation_errors.append("Critical Error: Missing 'Id' column in existing timesheet data.")
-                break # Stop processing to prevent further errors
+                # Only check for duplicates if df_existing_presensi is not empty and has required columns
+                is_duplicate = False
+                if not df_existing_presensi.empty and 'Id' in df_existing_presensi.columns and 'Date' in df_existing_presensi.columns:
+                    is_duplicate = df_existing_presensi[
+                        (df_existing_presensi['Id'].astype(str) == str(current_user_id)) &
+                        (df_existing_presensi['Date'].astype(str) == entry_date_str)
+                    ].empty is False
 
-            is_duplicate = df_existing_presensi[
-                (df_existing_presensi['Id'].astype(str) == str(current_user_id)) &
-                (df_existing_presensi['Date'].astype(str) == entry_date_str)
-            ].empty is False
-
-            if is_duplicate:
-                duplicate_entries_found.append(entry_date_str)
-            else:
-                entry = {
-                    "Id": current_user_id,
-                    "Username": st.session_state.user["Username"],
-                    "Date": entry_date_str,
-                    "Day": row["Day"],
-                    "Hours": hours,
-                    "Overtime": overtime,
-                    "Area 1": row["Area 1"],
-                    "Area 2": row["Area 2"],
-                    "Area 3": row["Area 3"],
-                    "Area 4": row["Area 4"],
-                    "Shift": row["Shift"],
-                    "Remark": row["Remark"],
-                }
-                final_data_to_submit.append([
-                    entry["Id"], entry["Username"], entry["Date"], entry["Day"],
-                    entry["Hours"], entry["Overtime"],
-                    entry["Area 1"], entry["Area 2"], entry["Area 3"], entry["Area 4"],
-                    entry["Shift"], entry["Remark"]
-                ])
+                if is_duplicate:
+                    duplicate_entries_found.append(entry_date_str)
+                else:
+                    entry = {
+                        "Id": current_user_id,
+                        "Username": st.session_state.user["Username"],
+                        "Date": entry_date_str,
+                        "Day": row["Day"],
+                        "Hours": hours,
+                        "Overtime": overtime,
+                        "Area 1": row["Area 1"],
+                        "Area 2": row["Area 2"],
+                        "Area 3": row["Area 3"],
+                        "Area 4": row["Area 4"],
+                        "Shift": row["Shift"],
+                        "Remark": row["Remark"],
+                    }
+                    final_data_to_submit.append([
+                        entry["Id"], entry["Username"], entry["Date"], entry["Day"],
+                        entry["Hours"], entry["Overtime"],
+                        entry["Area 1"], entry["Area 2"], entry["Area 3"], entry["Area 4"],
+                        entry["Shift"], entry["Remark"]
+                    ])
 
         if validation_errors:
             for error in validation_errors:
@@ -442,7 +458,6 @@ with tab1:
                     copy_to_clipboard_button(summary_text, "Salin ke Clipboard")
                 
                 with col_email:
-                    # Construct mailto link
                     import urllib.parse
                     # Ganti dengan email penerima default yang sesuai (misal: supervisor atau HR)
                     recipient_email = "your.supervisor@example.com"
@@ -481,12 +496,14 @@ with tab2:
 
     df_log_all = get_data_from_sheet(SHEET_ID, sheet_presensi_title)
 
+    df_filtered_all_log = pd.DataFrame() # Initialize empty DataFrame
+
     if 'Date' in df_log_all.columns:
         df_log_all['Date'] = pd.to_datetime(df_log_all['Date'], errors='coerce')
         df_filtered_all_log = df_log_all[(df_log_all['Date'] >= pd.to_datetime(log_start_date)) &
                                          (df_log_all['Date'] <= pd.to_datetime(log_end_date))]
     else:
-        st.warning("Column 'Date' not found in 'presensi' sheet for filtering. Displaying all available log data.")
+        st.warning("Kolom 'Date' tidak ditemukan di sheet 'presensi' untuk filtering. Menampilkan semua data log yang tersedia.")
         df_filtered_all_log = df_log_all.copy()
 
     st.subheader("Filter Activity Log")
@@ -541,13 +558,23 @@ with tab2:
 
     existing_columns_all = [col for col in columns_to_display_all if col in df_filtered_all_log.columns]
 
-    st.dataframe(
-        df_filtered_all_log[existing_columns_all]
-        .sort_values(by="Date", ascending=False, na_position='last')
-        .reset_index(drop=True),
-        hide_index=True,
-        use_container_width=True
-    )
+    # --- FIX: Conditionally sort only if 'Date' column exists ---
+    if 'Date' in df_filtered_all_log.columns:
+        st.dataframe(
+            df_filtered_all_log[existing_columns_all]
+            .sort_values(by="Date", ascending=False, na_position='last')
+            .reset_index(drop=True),
+            hide_index=True,
+            use_container_width=True
+        )
+    else:
+        st.dataframe(
+            df_filtered_all_log[existing_columns_all]
+            .reset_index(drop=True), # Display without sorting if 'Date' is missing
+            hide_index=True,
+            use_container_width=True
+        )
+        st.warning("Data log tidak dapat diurutkan berdasarkan 'Date' karena kolom tersebut tidak ditemukan.")
 
 
 # --- AUDIT TRAIL CHANGE: New Tab for Audit Log ---
@@ -615,13 +642,23 @@ with tab3: # Moved to tab3
         if selected_audit_status != "All":
             df_filtered_audit_log = df_filtered_audit_log[df_filtered_audit_log['Status'] == selected_audit_status]
 
-        st.dataframe(
-            df_filtered_audit_log
-            .sort_values(by="Timestamp", ascending=False, na_position='last')
-            .reset_index(drop=True),
-            hide_index=True,
-            use_container_width=True
-        )
+        # --- FIX: Conditionally sort audit log only if 'Timestamp' column exists ---
+        if 'Timestamp' in df_filtered_audit_log.columns:
+            st.dataframe(
+                df_filtered_audit_log
+                .sort_values(by="Timestamp", ascending=False, na_position='last')
+                .reset_index(drop=True),
+                hide_index=True,
+                use_container_width=True
+            )
+        else:
+            st.dataframe(
+                df_filtered_audit_log
+                .reset_index(drop=True), # Display without sorting if 'Timestamp' is missing
+                hide_index=True,
+                use_container_width=True
+            )
+            st.warning("Audit log tidak dapat diurutkan berdasarkan 'Timestamp' karena kolom tersebut tidak ditemukan.")
     else:
         st.info("No audit log entries found.")
 
