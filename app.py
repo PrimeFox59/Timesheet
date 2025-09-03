@@ -360,18 +360,35 @@ tab_map = {name: obj for name, obj in zip(all_possible_tabs_names, tabs_objects)
 # --- Timesheet Tab ---
 with tab_map["📝 Timesheet Form"]:
     st.header("📝 Online Timesheet Form")
-    today = datetime.today()
+    
+    # Dapatkan tanggal hari ini
+    today = datetime.today().date() # Menggunakan .date() untuk mendapatkan objek tanggal murni
+    
+    # Hitung awal dan akhir minggu sebelumnya
+    # Hitung hari saat ini dalam minggu (Senin = 0, Minggu = 6)
+    # today.weekday() akan mengembalikan 0 untuk Senin, 1 untuk Selasa, dst.
+    days_to_subtract = today.weekday() + 7
+    
+    # Hitung tanggal awal (start_date) dari minggu sebelumnya
+    # Kurangi jumlah hari yang diperlukan untuk mundur ke hari Senin minggu sebelumnya
+    previous_week_start = today - timedelta(days=days_to_subtract)
+    
+    # Hitung tanggal akhir (end_date) dari minggu sebelumnya
+    # Tanggal akhir adalah 6 hari setelah tanggal awal
+    previous_week_end = previous_week_start + timedelta(days=6)
 
     col_start_date, col_end_date = st.columns(2)
 
     with col_start_date:
-        start_date = st.date_input("Start Date", today - timedelta(days=6))
+        # Atur nilai default start_date ke awal minggu sebelumnya
+        start_date = st.date_input("Start Date", previous_week_start)
 
     with col_end_date:
-        end_date = st.date_input("End Date", today)
+        # Atur nilai default end_date ke akhir minggu sebelumnya
+        end_date = st.date_input("End Date", previous_week_end)
 
     date_list = get_date_range(start_date, end_date)
-    st.markdown(f"**Date Range:** {start_date.strftime('%d-%b-%Y')} ➜ {end_date.strftime('%d-%b-%Y')}")
+    st.markdown(f"**Date Range:** {start_date.strftime('%d-%b-%Y')} ➜ {end_date.strftime('%d-%d-%Y')}")
 
     all_shift_opts = ["Day Shift", "Night Shift", "Noon Shift"]
 
@@ -1069,3 +1086,4 @@ st.markdown(
     "<p align='center'>This application was developed by <b>Galih Primananda</b> and <b>Iqlima Nur Hayati</b>, 2025.</p>",
     unsafe_allow_html=True
 )
+
