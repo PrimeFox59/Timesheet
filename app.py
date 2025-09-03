@@ -390,7 +390,7 @@ with tab_map["📝 Timesheet Form"]:
     date_list = get_date_range(start_date, end_date)
     st.markdown(f"**Date Range:** {start_date.strftime('%d-%b-%Y')} ➜ {end_date.strftime('%d-%d-%Y')}")
 
-    all_shift_opts = ["Day Shift", "Night Shift", "Noon Shift"]
+    all_shift_opts = ["Day Shift", "Night Shift", "Noon Shift", "Off"]
 
     user_preferred_shift = st.session_state.user.get("Preferred Shift", "Day Shift")
     if user_preferred_shift not in all_shift_opts:
@@ -1024,7 +1024,7 @@ with tab_map["⚙️ User Settings"]:
                 log_audit_event(current_user_id, current_username, "Update User Preference", f"Failed to update preferred areas to: {new_preferred_areas_str}.")
 
     st.subheader("Set Preferred Shift")
-    all_shift_opts = ["Day Shift", "Night Shift", "Noon Shift"]
+    all_shift_opts = ["Day Shift", "Night Shift", "Noon Shift", "Off"]
     current_preferred_shift = st.session_state.user.get("Preferred Shift", "Day Shift")
 
     with st.form("set_preferred_shift_form", clear_on_submit=False):
@@ -1086,4 +1086,5 @@ st.markdown(
     "<p align='center'>This application was developed by <b>Galih Primananda</b> and <b>Iqlima Nur Hayati</b>, 2025.</p>",
     unsafe_allow_html=True
 )
+
 
