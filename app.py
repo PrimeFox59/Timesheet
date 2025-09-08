@@ -360,37 +360,40 @@ tab_map = {name: obj for name, obj in zip(all_possible_tabs_names, tabs_objects)
 # --- Timesheet Tab ---
 with tab_map["📝 Timesheet Form"]:
     st.header("📝 Online Timesheet Form")
-    
+
     # Dapatkan tanggal hari ini
     today = datetime.today().date()
-    
-    # Hitung hari saat ini dalam minggu (Senin = 0, Minggu = 6)
+
+    # Hitung hari ini dalam minggu (Senin = 0, Minggu = 6)
     # today.weekday() akan mengembalikan 0 untuk Senin, 1 untuk Selasa, dst.
-    # Jika hari ini Senin (weekday() == 0), maka days_to_subtract adalah 0
-    # Jika hari ini Selasa (weekday() == 1), maka days_to_subtract adalah 1, dst.
     days_to_subtract = today.weekday()
-    
+
     # Hitung tanggal awal (start_date) dari minggu ini
     # Kurangi jumlah hari yang diperlukan untuk mundur ke hari Senin minggu ini
     current_week_start = today - timedelta(days=days_to_subtract)
-    
+
     # Hitung tanggal akhir (end_date) dari minggu ini
     # Tanggal akhir adalah 6 hari setelah tanggal awal
     current_week_end = current_week_start + timedelta(days=6)
-    
+
     col_start_date, col_end_date = st.columns(2)
-    
+
     with col_start_date:
         # Atur nilai default start_date ke awal minggu ini
         start_date = st.date_input("Start Date", current_week_start)
-    
+
     with col_end_date:
         # Atur nilai default end_date ke akhir minggu ini
         end_date = st.date_input("End Date", current_week_end)
-    
-    # Fungsi get_date_range tidak disertakan dalam kode Anda, 
-    # jadi saya hanya menyertakan bagian ini sebagai contoh output.
-    # date_list = get_date_range(start_date, end_date) 
+
+    # Fungsi get_date_range tidak disertakan dalam kode Anda,
+    # jadi bagian ini hanya untuk ilustrasi output.
+    # Anda perlu memastikan fungsi ini ada atau menghapusnya jika tidak digunakan.
+    # def get_date_range(start, end):
+    #     return [(start + timedelta(n)) for n in range(int((end - start).days) + 1)]
+    # date_list = get_date_range(start_date, end_date)
+
+    # Format tanggal yang disesuaikan: DD-Mon-YYYY -> DD-Mon-YYYY
     st.markdown(f"**Date Range:** {start_date.strftime('%d-%b-%Y')} ➜ {end_date.strftime('%d-%b-%Y')}")
 
     all_shift_opts = ["Day Shift", "Night Shift", "Noon Shift", "Off"]
@@ -1089,6 +1092,7 @@ st.markdown(
     "<p align='center'>This application was developed by <b>Galih Primananda</b> and <b>Iqlima Nur Hayati</b>, 2025.</p>",
     unsafe_allow_html=True
 )
+
 
 
 
