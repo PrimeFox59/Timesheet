@@ -383,7 +383,7 @@ with tab_map["📝 Timesheet Form"]:
     
     with col_start_date:
         # Gunakan start_date_default sebagai nilai awal
-        start_date = st.date_input("Start Date", start_date_default)
+        start_date = st.date_input("Start Date (Y/M/D)", start_date_default)
     
     with col_end_date:
         # Gunakan end_date_default sebagai nilai awal
@@ -1092,6 +1092,7 @@ st.markdown(
     "<p align='center'>This application was developed by <b>Galih Primananda</b> and <b>Iqlima Nur Hayati</b>, 2025.</p>",
     unsafe_allow_html=True
 )
+
 
 
 
