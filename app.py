@@ -357,45 +357,37 @@ tabs_objects = st.tabs(all_possible_tabs_names)
 tab_map = {name: obj for name, obj in zip(all_possible_tabs_names, tabs_objects)}
 
 
-# --- Timesheet Tab ---
-# Pastikan 'tab_map' sudah didefinisikan sebelumnya di bagian kode Anda yang lain.
-# Contoh: tab_map = {"📝 Timesheet Form": None} 
-
 with tab_map["📝 Timesheet Form"]:
     st.header("📝 Online Timesheet Form")
     
     # Dapatkan tanggal hari ini
     today = datetime.today().date() # Menggunakan .date() untuk mendapatkan objek tanggal murni
     
-    # Hitung awal minggu ini
-    # today.weekday() mengembalikan 0 untuk Senin, 1 untuk Selasa, dst.
-    # Mengurangi today.weekday() dari tanggal hari ini akan memberikan tanggal Senin minggu ini.
-    current_week_start = today - timedelta(days=today.weekday())
+    # Hitung awal dan akhir minggu sebelumnya
+    # Hitung hari saat ini dalam minggu (Senin = 0, Minggu = 6)
+    # today.weekday() akan mengembalikan 0 untuk Senin, 1 untuk Selasa, dst.
+    days_to_subtract = today.weekday() + 7
     
-    # Hitung akhir minggu ini
-    # Tanggal akhir adalah 6 hari setelah tanggal awal (Senin)
-    current_week_end = current_week_start + timedelta(days=6)
+    # Hitung tanggal awal (start_date) dari minggu sebelumnya
+    # Kurangi jumlah hari yang diperlukan untuk mundur ke hari Senin minggu sebelumnya
+    previous_week_start = today - timedelta(days=days_to_subtract)
+    
+    # Hitung tanggal akhir (end_date) dari minggu sebelumnya
+    # Tanggal akhir adalah 6 hari setelah tanggal awal
+    previous_week_end = previous_week_start + timedelta(days=6)
 
     col_start_date, col_end_date = st.columns(2)
 
     with col_start_date:
-        # Atur nilai default start_date ke awal minggu ini
-        start_date = st.date_input("Start Date", current_week_start)
+        # Atur nilai default start_date ke awal minggu sebelumnya
+        start_date = st.date_input("Start Date", previous_week_start)
 
     with col_end_date:
-        # Atur nilai default end_date ke akhir minggu ini
-        end_date = st.date_input("End Date", current_week_end)
+        # Atur nilai default end_date ke akhir minggu sebelumnya
+        end_date = st.date_input("End Date", previous_week_end)
 
-    # Menghapus baris yang menyebabkan NameError karena get_date_range tidak terdefinisi.
-    # Jika Anda memerlukan daftar tanggal, Anda perlu mendefinisikan fungsi get_date_range.
-    # Contoh:
-    # def get_date_range(start, end):
-    #     return [start + timedelta(days=i) for i in range((end - start).days + 1)]
-    # date_list = get_date_range(start_date, end_date)
-
-    # Memperbaiki format tanggal di markdown agar konsisten (menggunakan %b untuk nama bulan)
-    st.markdown(f"**Date Range:** {start_date.strftime('%d-%b-%Y')} ➜ {end_date.strftime('%d-%b-%Y')}")
-
+    date_list = get_date_range(start_date, end_date)
+    st.markdown(f"**Date Range:** {start_date.strftime('%d-%b-%Y')} ➜ {end_date.strftime('%d-%d-%Y')}")
 
     all_shift_opts = ["Day Shift", "Night Shift", "Noon Shift", "Off"]
 
@@ -1093,6 +1085,7 @@ st.markdown(
     "<p align='center'>This application was developed by <b>Galih Primananda</b> and <b>Iqlima Nur Hayati</b>, 2025.</p>",
     unsafe_allow_html=True
 )
+
 
 
 
