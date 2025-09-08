@@ -387,7 +387,7 @@ with tab_map["📝 Timesheet Form"]:
         end_date = st.date_input("End Date", previous_week_end)
 
     date_list = get_date_range(start_date, end_date)
-    st.markdown(f"**Date Range:** {start_date.strftime('%d-%b-%Y')} ➜ {end_date.strftime('%d-%d-%Y')}")
+    st.markdown(f"**Date Range:** {start_date.strftime('%d-%b-%Y')} ➜ {end_date.strftime('%d-%b-%Y')}")
 
     all_shift_opts = ["Day Shift", "Night Shift", "Noon Shift", "Off"]
 
@@ -1085,6 +1085,7 @@ st.markdown(
     "<p align='center'>This application was developed by <b>Galih Primananda</b> and <b>Iqlima Nur Hayati</b>, 2025.</p>",
     unsafe_allow_html=True
 )
+
 
 
 
