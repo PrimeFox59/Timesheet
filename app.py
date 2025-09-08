@@ -134,8 +134,11 @@ def check_login(user_id, password):
 def get_day_name(date_obj):
     return date_obj.strftime("%A")
 
-def get_date_range(start, end):
-    return pd.date_range(start=start, end=end).to_list()
+def get_date_range(start_date, end_date):
+    # Fungsi ini diasumsikan sudah ada dan mengembalikan daftar tanggal
+    # Contoh implementasi sederhana:
+    delta = end_date - start_date
+    return [start_date + timedelta(days=i) for i in range(delta.days + 1)]
 
 # --- Functions for User Settings ---
 def update_user_data_in_sheet(user_id, column_name, new_value):
@@ -359,34 +362,38 @@ tab_map = {name: obj for name, obj in zip(all_possible_tabs_names, tabs_objects)
 
 with tab_map["📝 Timesheet Form"]:
     st.header("📝 Online Timesheet Form")
+    today = datetime.today()
     
-    # Dapatkan tanggal hari ini
-    today = datetime.today().date() # Menggunakan .date() untuk mendapatkan objek tanggal murni
+    # Menentukan hari pertama dalam seminggu (Senin = 0, Minggu = 6)
+    # today.weekday() mengembalikan 0 untuk Senin, 1 untuk Selasa, ..., 6 untuk Minggu
+    # today.weekday() - 0 adalah jumlah hari sejak Senin
+    # today.weekday() - 6 adalah jumlah hari sejak Minggu (jika hari ini Minggu, nilainya 0)
+    # Dengan demikian, untuk mendapatkan Senin, kita kurangi today.weekday() hari
+    # Untuk mendapatkan Minggu, kita tambahkan (6 - today.weekday()) hari
     
-    # Hitung awal dan akhir minggu sebelumnya
-    # Hitung hari saat ini dalam minggu (Senin = 0, Minggu = 6)
-    # today.weekday() akan mengembalikan 0 untuk Senin, 1 untuk Selasa, dst.
-    days_to_subtract = today.weekday() + 7
+    day_of_week = today.weekday() # 0 = Senin, 6 = Minggu
     
-    # Hitung tanggal awal (start_date) dari minggu sebelumnya
-    # Kurangi jumlah hari yang diperlukan untuk mundur ke hari Senin minggu sebelumnya
-    previous_week_start = today - timedelta(days=days_to_subtract)
+    # Hitung tanggal mulai (Senin minggu ini)
+    start_date_default = today - timedelta(days=day_of_week)
     
-    # Hitung tanggal akhir (end_date) dari minggu sebelumnya
-    # Tanggal akhir adalah 6 hari setelah tanggal awal
-    previous_week_end = previous_week_start + timedelta(days=6)
-
+    # Hitung tanggal akhir (Minggu minggu ini)
+    end_date_default = today + timedelta(days=(6 - day_of_week))
+    
     col_start_date, col_end_date = st.columns(2)
-
+    
     with col_start_date:
-        # Atur nilai default start_date ke awal minggu sebelumnya
-        start_date = st.date_input("Start Date", previous_week_start)
-
+        # Gunakan start_date_default sebagai nilai awal
+        start_date = st.date_input("Start Date", start_date_default)
+    
     with col_end_date:
-        # Atur nilai default end_date ke akhir minggu sebelumnya
-        end_date = st.date_input("End Date", previous_week_end)
-
-    date_list = get_date_range(start_date, end_date)
+        # Gunakan end_date_default sebagai nilai awal
+        end_date = st.date_input("End Date", end_date_default)
+    
+    # Pastikan start_date tidak lebih besar dari end_date jika pengguna mengubahnya secara manual
+    if start_date > end_date:
+        st.error("Error: Start date cannot be after end date.")
+    else:
+        date_list = get_date_range(start_date, end_date)
     st.markdown(f"**Date Range:** {start_date.strftime('%d-%b-%Y')} ➜ {end_date.strftime('%d-%b-%Y')}")
 
     all_shift_opts = ["Day Shift", "Night Shift", "Noon Shift", "Off"]
@@ -1085,6 +1092,7 @@ st.markdown(
     "<p align='center'>This application was developed by <b>Galih Primananda</b> and <b>Iqlima Nur Hayati</b>, 2025.</p>",
     unsafe_allow_html=True
 )
+
 
 
 
