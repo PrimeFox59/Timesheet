@@ -356,23 +356,24 @@ tabs_objects = st.tabs(all_possible_tabs_names)
 # Map tab names to their actual tab objects for consistent access
 tab_map = {name: obj for name, obj in zip(all_possible_tabs_names, tabs_objects)}
 
+
 # --- Timesheet Tab ---
+# Pastikan 'tab_map' sudah didefinisikan sebelumnya di bagian kode Anda yang lain.
+# Contoh: tab_map = {"📝 Timesheet Form": None} 
+
 with tab_map["📝 Timesheet Form"]:
     st.header("📝 Online Timesheet Form")
-
+    
     # Dapatkan tanggal hari ini
-    today = datetime.today().date()
-
-    # Hitung hari saat ini dalam minggu (Senin = 0, Minggu = 6)
-    # today.weekday() akan mengembalikan 0 untuk Senin, 1 untuk Selasa, dst.
-    days_to_subtract = today.weekday()
-
-    # Hitung tanggal awal (start_date) dari minggu ini
-    # Kurangi jumlah hari yang diperlukan untuk mundur ke hari Senin minggu ini
-    current_week_start = today - timedelta(days=days_to_subtract)
-
-    # Hitung tanggal akhir (end_date) dari minggu ini
-    # Tanggal akhir adalah 6 hari setelah tanggal awal
+    today = datetime.today().date() # Menggunakan .date() untuk mendapatkan objek tanggal murni
+    
+    # Hitung awal minggu ini
+    # today.weekday() mengembalikan 0 untuk Senin, 1 untuk Selasa, dst.
+    # Mengurangi today.weekday() dari tanggal hari ini akan memberikan tanggal Senin minggu ini.
+    current_week_start = today - timedelta(days=today.weekday())
+    
+    # Hitung akhir minggu ini
+    # Tanggal akhir adalah 6 hari setelah tanggal awal (Senin)
     current_week_end = current_week_start + timedelta(days=6)
 
     col_start_date, col_end_date = st.columns(2)
@@ -385,11 +386,14 @@ with tab_map["📝 Timesheet Form"]:
         # Atur nilai default end_date ke akhir minggu ini
         end_date = st.date_input("End Date", current_week_end)
 
-    # Hapus baris yang menyebabkan NameError karena get_date_range tidak didefinisikan
-    # Jika Anda memiliki fungsi get_date_range, Anda dapat memanggilnya di sini.
-    # Contoh: date_list = get_date_range(start_date, end_date)
+    # Menghapus baris yang menyebabkan NameError karena get_date_range tidak terdefinisi.
+    # Jika Anda memerlukan daftar tanggal, Anda perlu mendefinisikan fungsi get_date_range.
+    # Contoh:
+    # def get_date_range(start, end):
+    #     return [start + timedelta(days=i) for i in range((end - start).days + 1)]
+    # date_list = get_date_range(start_date, end_date)
 
-    # Perbaikan format tanggal agar lebih mudah dibaca
+    # Memperbaiki format tanggal di markdown agar konsisten (menggunakan %b untuk nama bulan)
     st.markdown(f"**Date Range:** {start_date.strftime('%d-%b-%Y')} ➜ {end_date.strftime('%d-%b-%Y')}")
 
 
@@ -1089,6 +1093,7 @@ st.markdown(
     "<p align='center'>This application was developed by <b>Galih Primananda</b> and <b>Iqlima Nur Hayati</b>, 2025.</p>",
     unsafe_allow_html=True
 )
+
 
 
 
