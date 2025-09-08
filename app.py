@@ -387,7 +387,7 @@ with tab_map["📝 Timesheet Form"]:
     
     with col_end_date:
         # Gunakan end_date_default sebagai nilai awal
-        end_date = st.date_input("End Date", end_date_default)
+        end_date = st.date_input("End Date (Y/M/D)", end_date_default)
     
     # Pastikan start_date tidak lebih besar dari end_date jika pengguna mengubahnya secara manual
     if start_date > end_date:
@@ -1092,6 +1092,7 @@ st.markdown(
     "<p align='center'>This application was developed by <b>Galih Primananda</b> and <b>Iqlima Nur Hayati</b>, 2025.</p>",
     unsafe_allow_html=True
 )
+
 
 
 
