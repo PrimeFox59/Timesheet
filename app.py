@@ -429,61 +429,92 @@ st.markdown(
     
     /* KPI Card Styles */
     .kpi-card {
-        background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
-        backdrop-filter: blur(10px);
-        border-radius: 20px;
-        padding: 24px;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.1);
-        border: 1px solid rgba(255,255,255,0.18);
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        border-radius: 24px;
+        padding: 32px 28px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         height: 100%;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .kpi-card::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        right: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+        transition: all 0.6s ease;
     }
     
     .kpi-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 12px 32px rgba(0,0,0,0.15);
+        transform: translateY(-8px) scale(1.02);
+        box-shadow: 0 15px 50px rgba(0,0,0,0.25);
+    }
+    
+    .kpi-card:hover::before {
+        top: -60%;
+        right: -60%;
     }
     
     .kpi-card.blue {
-        border-left: 5px solid #4facfe;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     }
     
     .kpi-card.green {
-        border-left: 5px solid #43e97b;
+        background: linear-gradient(135deg, #38ef7d 0%, #11998e 100%);
     }
     
     .kpi-card.orange {
-        border-left: 5px solid #fa709a;
+        background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
     }
     
     .kpi-card.purple {
-        border-left: 5px solid #a78bfa;
+        background: linear-gradient(135deg, #a78bfa 0%, #ec4899 100%);
+    }
+    
+    .kpi-icon {
+        font-size: 2.5rem;
+        margin-bottom: 16px;
+        display: inline-block;
+        animation: float 3s ease-in-out infinite;
+    }
+    
+    @keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
     }
     
     .kpi-title {
-        font-size: 0.85rem;
-        font-weight: 600;
-        color: rgba(255,255,255,0.7);
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: rgba(255,255,255,0.9);
         text-transform: uppercase;
-        letter-spacing: 1px;
+        letter-spacing: 1.5px;
         margin-bottom: 12px;
+        position: relative;
+        z-index: 1;
     }
     
     .kpi-value {
-        font-size: 2.5rem;
+        font-size: 3rem;
         font-weight: 900;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
+        color: #ffffff;
         margin-bottom: 8px;
         line-height: 1;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        position: relative;
+        z-index: 1;
     }
     
     .kpi-subtitle {
-        font-size: 0.8rem;
-        color: rgba(255,255,255,0.6);
+        font-size: 0.85rem;
+        color: rgba(255,255,255,0.85);
         font-weight: 500;
+        position: relative;
+        z-index: 1;
     }
     
     /* Header Styling */
@@ -708,7 +739,8 @@ with tab_map["📝 Timesheet Form"]:
         st.markdown(
             f"""
             <div class="kpi-card blue">
-                <div class="kpi-title">📊 Total Entries</div>
+                <div class="kpi-icon">📊</div>
+                <div class="kpi-title">Total Entries</div>
                 <div class="kpi-value">{total_entries}</div>
                 <div class="kpi-subtitle">All time records</div>
             </div>
@@ -720,7 +752,8 @@ with tab_map["📝 Timesheet Form"]:
         st.markdown(
             f"""
             <div class="kpi-card green">
-                <div class="kpi-title">⏰ This Month</div>
+                <div class="kpi-icon">⏰</div>
+                <div class="kpi-title">This Month</div>
                 <div class="kpi-value">{month_hours:.1f}h</div>
                 <div class="kpi-subtitle">Working hours</div>
             </div>
@@ -732,7 +765,8 @@ with tab_map["📝 Timesheet Form"]:
         st.markdown(
             f"""
             <div class="kpi-card orange">
-                <div class="kpi-title">🔥 Total Hours</div>
+                <div class="kpi-icon">🔥</div>
+                <div class="kpi-title">Total Hours</div>
                 <div class="kpi-value">{total_hours:.1f}h</div>
                 <div class="kpi-subtitle">All time hours</div>
             </div>
@@ -744,7 +778,8 @@ with tab_map["📝 Timesheet Form"]:
         st.markdown(
             f"""
             <div class="kpi-card purple">
-                <div class="kpi-title">⚡ Overtime</div>
+                <div class="kpi-icon">⚡</div>
+                <div class="kpi-title">Overtime</div>
                 <div class="kpi-value">{total_overtime:.1f}h</div>
                 <div class="kpi-subtitle">Total overtime</div>
             </div>
@@ -1046,7 +1081,8 @@ with tab_map["📊 Activity Log"]:
         st.markdown(
             f"""
             <div class="kpi-card blue">
-                <div class="kpi-title">👥 Active Users</div>
+                <div class="kpi-icon">👥</div>
+                <div class="kpi-title">Active Users</div>
                 <div class="kpi-value">{total_users}</div>
                 <div class="kpi-subtitle">Total contributors</div>
             </div>
@@ -1058,7 +1094,8 @@ with tab_map["📊 Activity Log"]:
         st.markdown(
             f"""
             <div class="kpi-card green">
-                <div class="kpi-title">📅 This Week</div>
+                <div class="kpi-icon">📅</div>
+                <div class="kpi-title">This Week</div>
                 <div class="kpi-value">{week_entries}</div>
                 <div class="kpi-subtitle">New entries</div>
             </div>
@@ -1070,7 +1107,8 @@ with tab_map["📊 Activity Log"]:
         st.markdown(
             f"""
             <div class="kpi-card orange">
-                <div class="kpi-title">📝 Total Entries</div>
+                <div class="kpi-icon">📝</div>
+                <div class="kpi-title">Total Entries</div>
                 <div class="kpi-value">{total_all_entries}</div>
                 <div class="kpi-subtitle">All records</div>
             </div>
@@ -1082,7 +1120,8 @@ with tab_map["📊 Activity Log"]:
         st.markdown(
             f"""
             <div class="kpi-card purple">
-                <div class="kpi-title">⏱️ Total Hours</div>
+                <div class="kpi-icon">⏱️</div>
+                <div class="kpi-title">Total Hours</div>
                 <div class="kpi-value">{total_all_hours:.0f}h</div>
                 <div class="kpi-subtitle">Accumulated time</div>
             </div>
