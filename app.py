@@ -291,43 +291,154 @@ if "logged_out_after_password_change" not in st.session_state:
 
 
 # --- App Title ---
-col_logo, col_title = st.columns([1, 3])
-with col_logo:
-    st.image("logo login.png", width=250)
+st.markdown(
+    """
+    <style>
+    .login-container {
+        max-width: 480px;
+        margin: 0 auto;
+        padding: 40px 20px;
+    }
+    .login-logo-container {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    .login-card {
+        background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(255,255,255,0.9));
+        backdrop-filter: blur(10px);
+        border-radius: 24px;
+        padding: 40px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+        border: 1px solid rgba(255,255,255,0.3);
+    }
+    .app-title {
+        font-size: 2.2rem;
+        font-weight: 900;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin: 0;
+        line-height: 1.2;
+    }
+    .app-subtitle {
+        font-size: 1rem;
+        color: #6b7280;
+        margin-top: 8px;
+        font-weight: 500;
+    }
+    .login-title {
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: #1f2937;
+        text-align: center;
+        margin-bottom: 10px;
+    }
+    .login-subtitle {
+        font-size: 0.95rem;
+        color: #6b7280;
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    .login-btn {
+        width: 100%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 12px !important;
+        padding: 14px 24px !important;
+        font-size: 1.05rem !important;
+        font-weight: 700 !important;
+        margin-top: 20px !important;
+        box-shadow: 0 6px 20px rgba(102,126,234,0.4) !important;
+        transition: all 0.3s ease !important;
+    }
+    .login-btn:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 8px 25px rgba(102,126,234,0.5) !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 # --- Login Section ---
 if st.session_state.user is None:
-    st.markdown(
-        """
-        <div class="main-header">
-            <h1>🔐 Secure Login</h1>
-            <p>Enter your credentials to access the timesheet system</p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    # Center the login form
+    col_left, col_center, col_right = st.columns([1, 2, 1])
+    
+    with col_center:
+        # Logo
+        st.markdown('<div class="login-logo-container">', unsafe_allow_html=True)
+        st.image("logo login.png", width=180)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # App Title
+        st.markdown(
+            """
+            <div style="text-align: center; margin-bottom: 40px;">
+                <h1 class="app-title">Timesheet METSO</h1>
+                <p class="app-subtitle">Efficient Time & Activity Management Platform</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        
+        # Login Card
+        st.markdown('<div class="login-card">', unsafe_allow_html=True)
+        
+        # Login Header
+        st.markdown(
+            """
+            <div class="login-title">🔐 Secure Login</div>
+            <div class="login-subtitle">Enter your credentials to access the timesheet system</div>
+            """,
+            unsafe_allow_html=True
+        )
 
     if st.session_state.logged_out_after_password_change:
         st.info("Your password has been changed. Please log in with your new password.")
         st.session_state.logged_out_after_password_change = False
 
-    # Login Form with modern styling
-    with st.container():
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            user_id = st.text_input("👤 User ID", placeholder="Enter your user ID")
-            password = st.text_input("🔒 Password", type="password", placeholder="Enter your password")
-            
-    if st.button("🚀 Login", use_container_width=True, type="primary"):
-        user = check_login(user_id, password)
-        if user is not None:
-            st.session_state.user = user
-            st.success("Login successful!")
-            log_audit_event(user_id, user["Username"], "Login", "Successful login.")
-            st.rerun()
-        else:
-            st.error("❌ Incorrect User ID or Password")
-            log_audit_event(user_id, "N/A", "Login", "Failed login attempt (incorrect credentials).", "Failed")
+    with col_center:
+        # Login Form
+        user_id = st.text_input(
+            "User ID",
+            placeholder="Enter your user ID",
+            key="login_user_id",
+            label_visibility="visible"
+        )
+        password = st.text_input(
+            "Password",
+            type="password",
+            placeholder="Enter your password",
+            key="login_password",
+            label_visibility="visible"
+        )
+        
+        # Custom styled button
+        if st.button("🚀 Login", key="login_btn", use_container_width=True, type="primary"):
+            user = check_login(user_id, password)
+            if user is not None:
+                st.session_state.user = user
+                st.success("✅ Login successful!")
+                log_audit_event(user_id, user["Username"], "Login", "Successful login.")
+                st.rerun()
+            else:
+                st.error("❌ Incorrect User ID or Password")
+                log_audit_event(user_id, "N/A", "Login", "Failed login attempt (incorrect credentials).", "Failed")
+        
+        st.markdown('</div>', unsafe_allow_html=True)  # Close login-card
+        
+        # Footer note
+        st.markdown(
+            """
+            <div style="text-align: center; margin-top: 30px; color: #9ca3af; font-size: 0.85rem;">
+                🔒 Your data is secure and encrypted
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    
     st.stop()
 
 
