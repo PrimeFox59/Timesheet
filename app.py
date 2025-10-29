@@ -372,15 +372,6 @@ if st.session_state.user is None:
         st.image("logo login.png", width=180)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # Login Header
-        st.markdown(
-            """
-            <div class="login-title">🔐 Secure Login</div>
-            <div class="login-subtitle">Enter your credentials to access the timesheet system</div>
-            """,
-            unsafe_allow_html=True
-        )
-
     if st.session_state.logged_out_after_password_change:
         st.info("Your password has been changed. Please log in with your new password.")
         st.session_state.logged_out_after_password_change = False
