@@ -294,20 +294,6 @@ if "logged_out_after_password_change" not in st.session_state:
 col_logo, col_title = st.columns([1, 3])
 with col_logo:
     st.image("logo login.png", width=250)
-with col_title:
-    st.markdown(
-        """
-        <div style="padding: 20px 0;">
-            <h1 style="margin: 0; font-size: 2.5rem; font-weight: 900; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-                METSO Timesheet System
-            </h1>
-            <p style="margin: 8px 0 0 0; font-size: 1.1rem; color: rgba(255,255,255,0.7);">
-                Efficient Time & Activity Management Platform
-            </p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
 
 # --- Login Section ---
 if st.session_state.user is None:
