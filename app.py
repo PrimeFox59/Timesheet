@@ -5,6 +5,8 @@ import gspread
 from google.oauth2.service_account import Credentials
 import bcrypt
 import streamlit.components.v1 as components # Import for custom HTML/JS
+import base64
+import os
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -314,24 +316,114 @@ if st.session_state.user is None:
 
 
 # --- Sidebar Info Area ---
-st.sidebar.title("📍 Info Area")
-st.sidebar.write("👤 Logged in as:", st.session_state.user["Username"])
-st.sidebar.write("💼 Role:", st.session_state.user["Role"])
-st.sidebar.write("🎓 Grade:", st.session_state.user["Grade"])
+# Enhanced Sidebar with Custom CSS
+st.markdown(
+    """
+    <style>
+    .profile-card {
+        background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        border: 1px solid rgba(255,255,255,0.18);
+    }
+    .role-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        box-shadow: 0 2px 8px rgba(102,126,234,0.3);
+    }
+    .role-badge.admin {
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        box-shadow: 0 2px 8px rgba(245,87,108,0.3);
+    }
+    .area-info-card {
+        background: linear-gradient(135deg, rgba(79,172,254,0.1), rgba(0,242,254,0.1));
+        border-radius: 12px;
+        padding: 16px;
+        margin-top: 16px;
+        border-left: 4px solid #4facfe;
+    }
+    .area-info-card h4 {
+        margin: 0 0 12px 0;
+        color: #4facfe;
+        font-size: 0.9rem;
+        font-weight: 700;
+    }
+    .area-info-card ul {
+        margin: 0;
+        padding-left: 20px;
+    }
+    .area-info-card li {
+        margin: 6px 0;
+        font-size: 0.85rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# Load avatar/icon
+PAGE_ICON_PATH = "iconsidebar.gif"
+if os.path.exists(PAGE_ICON_PATH):
+    try:
+        with open(PAGE_ICON_PATH, "rb") as f:
+            b64 = base64.b64encode(f.read()).decode()
+        avatar = f'<img src="data:image/gif;base64,{b64}" width="48" height="48" style="border-radius:50%;object-fit:cover;box-shadow:0 4px 12px rgba(0,0,0,0.2);border:2px solid rgba(255,255,255,0.3);"/>'
+    except Exception:
+        avatar = '<div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#475569,#334155);box-shadow:0 4px 12px rgba(0,0,0,0.2);"></div>'
+else:
+    avatar = '<div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#475569,#334155);box-shadow:0 4px 12px rgba(0,0,0,0.2);"></div>'
+
+# User info card
+username = st.session_state.user["Username"]
+role = st.session_state.user["Role"]
+grade = st.session_state.user["Grade"]
+role_class = 'admin' if 'admin' in str(role).lower() else ''
+
+st.sidebar.markdown(
+    f'''
+    <div class="profile-card">
+      <div style="display:flex;gap:12px;align-items:center;">
+        {avatar}
+        <div style="flex:1;">
+          <div style="font-weight:900;line-height:1.2;font-size:1.05rem;">{username}</div>
+          <div style="font-size:.80rem;opacity:.90;margin-top:2px;">Grade: {grade}</div>
+          <div style="margin-top:8px;"><span class="role-badge {role_class}">● {role}</span></div>
+        </div>
+      </div>
+    </div>
+    ''',
+    unsafe_allow_html=True,
+)
+
+# Area Codes Info Card
+st.sidebar.markdown(
+    """
+    <div class="area-info-card">
+      <h4>📍 Area Codes</h4>
+      <ul>
+        <li><strong>CMN</strong>: Common Area</li>
+        <li><strong>GCP / SAP</strong>: Acid Plant</li>
+        <li><strong>ER</strong>: Electro Refinery</li>
+        <li><strong>ET</strong>: ETP Effluent Treatment Plant</li>
+        <li><strong>SC</strong>: Slag Concentrate</li>
+        <li><strong>SM</strong>: Smelter</li>
+      </ul>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 st.sidebar.markdown("---")
 
-st.sidebar.markdown("""
-**Area Codes:**
-- **CMN**: Common Area
-- **GCP** / **SAP**: Acid Plant
-- **ER**: Electro Refinery
-- **ET**: ETP Effluent Treatment Plant
-- **SC**: Slag Concentrate
-- **SM**: Smelter
-""")
-
-if st.sidebar.button("Logout"):
+if st.sidebar.button("🚪 Logout", use_container_width=True):
     log_audit_event(st.session_state.user["Id"], st.session_state.user["Username"], "Logout", "User logged out.")
     st.session_state.user = None
     st.session_state.logged_out_after_password_change = False
