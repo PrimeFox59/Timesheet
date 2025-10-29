@@ -12,7 +12,8 @@ import os
 st.set_page_config(
     page_title="Timesheet METSO",
     page_icon="📝",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 # --- Google Sheet Configuration ---
@@ -290,19 +291,48 @@ if "logged_out_after_password_change" not in st.session_state:
 
 
 # --- App Title ---
-st.image("logo login.png", width=250)
+col_logo, col_title = st.columns([1, 3])
+with col_logo:
+    st.image("logo login.png", width=250)
+with col_title:
+    st.markdown(
+        """
+        <div style="padding: 20px 0;">
+            <h1 style="margin: 0; font-size: 2.5rem; font-weight: 900; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                METSO Timesheet System
+            </h1>
+            <p style="margin: 8px 0 0 0; font-size: 1.1rem; color: rgba(255,255,255,0.7);">
+                Efficient Time & Activity Management Platform
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 # --- Login Section ---
 if st.session_state.user is None:
-    st.subheader("🔐 Login to Access Timesheet")
+    st.markdown(
+        """
+        <div class="main-header">
+            <h1>🔐 Secure Login</h1>
+            <p>Enter your credentials to access the timesheet system</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
     if st.session_state.logged_out_after_password_change:
         st.info("Your password has been changed. Please log in with your new password.")
         st.session_state.logged_out_after_password_change = False
 
-    user_id = st.text_input("User ID")
-    password = st.text_input("Password", type="password")
-    if st.button("Login"):
+    # Login Form with modern styling
+    with st.container():
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            user_id = st.text_input("👤 User ID", placeholder="Enter your user ID")
+            password = st.text_input("🔒 Password", type="password", placeholder="Enter your password")
+            
+    if st.button("🚀 Login", use_container_width=True, type="primary"):
         user = check_login(user_id, password)
         if user is not None:
             st.session_state.user = user
@@ -316,53 +346,229 @@ if st.session_state.user is None:
 
 
 # --- Sidebar Info Area ---
-# Enhanced Sidebar with Custom CSS
+# Enhanced Sidebar with Custom CSS and Modern Styling
 st.markdown(
     """
     <style>
+    /* Import Google Fonts */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    
+    /* Global Styling */
+    * {
+        font-family: 'Inter', sans-serif;
+    }
+    
+    /* Profile Card */
     .profile-card {
         background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
         backdrop-filter: blur(10px);
-        border-radius: 16px;
-        padding: 20px;
-        margin-bottom: 20px;
+        border-radius: 20px;
+        padding: 24px;
+        margin-bottom: 24px;
         box-shadow: 0 8px 32px rgba(0,0,0,0.1);
         border: 1px solid rgba(255,255,255,0.18);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
     }
+    
+    .profile-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+    }
+    
     .role-badge {
         display: inline-block;
-        padding: 4px 12px;
-        border-radius: 12px;
+        padding: 6px 14px;
+        border-radius: 20px;
         font-size: 0.75rem;
-        font-weight: 600;
+        font-weight: 700;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        box-shadow: 0 2px 8px rgba(102,126,234,0.3);
+        box-shadow: 0 4px 12px rgba(102,126,234,0.4);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
     }
+    
     .role-badge.admin {
         background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        box-shadow: 0 2px 8px rgba(245,87,108,0.3);
+        box-shadow: 0 4px 12px rgba(245,87,108,0.4);
     }
+    
     .area-info-card {
-        background: linear-gradient(135deg, rgba(79,172,254,0.1), rgba(0,242,254,0.1));
-        border-radius: 12px;
-        padding: 16px;
-        margin-top: 16px;
-        border-left: 4px solid #4facfe;
+        background: linear-gradient(135deg, rgba(79,172,254,0.15), rgba(0,242,254,0.1));
+        border-radius: 16px;
+        padding: 20px;
+        margin-top: 20px;
+        border-left: 5px solid #4facfe;
+        transition: all 0.3s ease;
     }
+    
+    .area-info-card:hover {
+        background: linear-gradient(135deg, rgba(79,172,254,0.2), rgba(0,242,254,0.15));
+        transform: translateX(3px);
+    }
+    
     .area-info-card h4 {
-        margin: 0 0 12px 0;
+        margin: 0 0 16px 0;
         color: #4facfe;
-        font-size: 0.9rem;
-        font-weight: 700;
+        font-size: 0.95rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 1px;
     }
+    
     .area-info-card ul {
         margin: 0;
         padding-left: 20px;
     }
+    
     .area-info-card li {
-        margin: 6px 0;
+        margin: 8px 0;
         font-size: 0.85rem;
+        line-height: 1.6;
+    }
+    
+    /* KPI Card Styles */
+    .kpi-card {
+        background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+        backdrop-filter: blur(10px);
+        border-radius: 20px;
+        padding: 24px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+        border: 1px solid rgba(255,255,255,0.18);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        height: 100%;
+    }
+    
+    .kpi-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 32px rgba(0,0,0,0.15);
+    }
+    
+    .kpi-card.blue {
+        border-left: 5px solid #4facfe;
+    }
+    
+    .kpi-card.green {
+        border-left: 5px solid #43e97b;
+    }
+    
+    .kpi-card.orange {
+        border-left: 5px solid #fa709a;
+    }
+    
+    .kpi-card.purple {
+        border-left: 5px solid #a78bfa;
+    }
+    
+    .kpi-title {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: rgba(255,255,255,0.7);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 12px;
+    }
+    
+    .kpi-value {
+        font-size: 2.5rem;
+        font-weight: 900;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 8px;
+        line-height: 1;
+    }
+    
+    .kpi-subtitle {
+        font-size: 0.8rem;
+        color: rgba(255,255,255,0.6);
+        font-weight: 500;
+    }
+    
+    /* Header Styling */
+    .main-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 30px;
+        border-radius: 20px;
+        margin-bottom: 30px;
+        box-shadow: 0 10px 30px rgba(102,126,234,0.3);
+    }
+    
+    .main-header h1 {
+        color: white;
+        font-weight: 900;
+        margin: 0;
+        font-size: 2.5rem;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+    }
+    
+    .main-header p {
+        color: rgba(255,255,255,0.9);
+        margin: 8px 0 0 0;
+        font-size: 1.1rem;
+    }
+    
+    /* Tab Styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: rgba(255,255,255,0.05);
+        border-radius: 16px;
+        padding: 8px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        border-radius: 12px;
+        padding: 12px 24px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        box-shadow: 0 4px 12px rgba(102,126,234,0.4);
+    }
+    
+    /* Button Styling */
+    .stButton>button {
+        border-radius: 12px;
+        font-weight: 600;
+        padding: 12px 24px;
+        transition: all 0.3s ease;
+        border: none;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    
+    .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+    }
+    
+    /* Form Styling */
+    .stTextInput>div>div>input, .stSelectbox>div>div>select {
+        border-radius: 12px;
+        border: 2px solid rgba(255,255,255,0.1);
+        padding: 12px;
+        transition: all 0.3s ease;
+    }
+    
+    .stTextInput>div>div>input:focus, .stSelectbox>div>div>select:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+    }
+    
+    /* Data Editor Styling */
+    .stDataFrame {
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    }
+    
+    /* Success/Error Message Styling */
+    .stSuccess, .stError, .stWarning, .stInfo {
+        border-radius: 12px;
+        padding: 16px;
+        font-weight: 500;
     }
     </style>
     """,
@@ -453,7 +659,101 @@ tab_map = {name: obj for name, obj in zip(all_possible_tabs_names, tabs_objects)
 
 
 with tab_map["📝 Timesheet Form"]:
-    st.header("📝 Online Timesheet Form")
+    # Modern Header
+    st.markdown(
+        """
+        <div class="main-header">
+            <h1>📝 Timesheet Entry</h1>
+            <p>Track your work hours and activities efficiently</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    
+    # Get KPI Data
+    df_user_timesheet = get_data_from_sheet(SHEET_ID, sheet_presensi_title)
+    current_user_id = st.session_state.user["Id"]
+    
+    # Filter user's data
+    if not df_user_timesheet.empty and 'Id' in df_user_timesheet.columns:
+        df_user_data = df_user_timesheet[df_user_timesheet['Id'].astype(str) == str(current_user_id)]
+        
+        # Calculate KPIs
+        total_entries = len(df_user_data)
+        total_hours = df_user_data['Hours'].sum() if 'Hours' in df_user_data.columns else 0
+        total_overtime = df_user_data['Overtime'].sum() if 'Overtime' in df_user_data.columns else 0
+        
+        # Get current month data
+        if 'Date' in df_user_data.columns:
+            df_user_data['Date'] = pd.to_datetime(df_user_data['Date'], errors='coerce')
+            current_month = datetime.today().month
+            current_year = datetime.today().year
+            df_current_month = df_user_data[
+                (df_user_data['Date'].dt.month == current_month) & 
+                (df_user_data['Date'].dt.year == current_year)
+            ]
+            month_hours = df_current_month['Hours'].sum() if 'Hours' in df_current_month.columns else 0
+        else:
+            month_hours = 0
+    else:
+        total_entries = 0
+        total_hours = 0
+        total_overtime = 0
+        month_hours = 0
+    
+    # Display KPI Cards
+    kpi_col1, kpi_col2, kpi_col3, kpi_col4 = st.columns(4)
+    
+    with kpi_col1:
+        st.markdown(
+            f"""
+            <div class="kpi-card blue">
+                <div class="kpi-title">📊 Total Entries</div>
+                <div class="kpi-value">{total_entries}</div>
+                <div class="kpi-subtitle">All time records</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    
+    with kpi_col2:
+        st.markdown(
+            f"""
+            <div class="kpi-card green">
+                <div class="kpi-title">⏰ This Month</div>
+                <div class="kpi-value">{month_hours:.1f}h</div>
+                <div class="kpi-subtitle">Working hours</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    
+    with kpi_col3:
+        st.markdown(
+            f"""
+            <div class="kpi-card orange">
+                <div class="kpi-title">🔥 Total Hours</div>
+                <div class="kpi-value">{total_hours:.1f}h</div>
+                <div class="kpi-subtitle">All time hours</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    
+    with kpi_col4:
+        st.markdown(
+            f"""
+            <div class="kpi-card purple">
+                <div class="kpi-title">⚡ Overtime</div>
+                <div class="kpi-value">{total_overtime:.1f}h</div>
+                <div class="kpi-subtitle">Total overtime</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
     today = datetime.today()
     
     # Menentukan hari pertama dalam seminggu (Senin = 0, Minggu = 6)
@@ -704,7 +1004,93 @@ with tab_map["📝 Timesheet Form"]:
 
 # --- Activity Log Tab (For All Users) ---
 with tab_map["📊 Activity Log"]:
-    st.header("📊 All Users Activity Log")
+    # Modern Header
+    st.markdown(
+        """
+        <div class="main-header">
+            <h1>📊 Activity Dashboard</h1>
+            <p>Monitor and analyze timesheet activities</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    
+    # Get all data for KPIs
+    df_all_data = get_data_from_sheet(SHEET_ID, sheet_presensi_title)
+    
+    # Calculate global KPIs
+    if not df_all_data.empty:
+        total_users = df_all_data['Username'].nunique() if 'Username' in df_all_data.columns else 0
+        total_all_entries = len(df_all_data)
+        total_all_hours = df_all_data['Hours'].sum() if 'Hours' in df_all_data.columns else 0
+        
+        # Get this week's data
+        if 'Date' in df_all_data.columns:
+            df_all_data['Date'] = pd.to_datetime(df_all_data['Date'], errors='coerce')
+            today = datetime.today()
+            week_start = today - timedelta(days=today.weekday())
+            df_this_week = df_all_data[df_all_data['Date'] >= pd.to_datetime(week_start)]
+            week_entries = len(df_this_week)
+        else:
+            week_entries = 0
+    else:
+        total_users = 0
+        total_all_entries = 0
+        total_all_hours = 0
+        week_entries = 0
+    
+    # Display Activity KPI Cards
+    kpi_col1, kpi_col2, kpi_col3, kpi_col4 = st.columns(4)
+    
+    with kpi_col1:
+        st.markdown(
+            f"""
+            <div class="kpi-card blue">
+                <div class="kpi-title">👥 Active Users</div>
+                <div class="kpi-value">{total_users}</div>
+                <div class="kpi-subtitle">Total contributors</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    
+    with kpi_col2:
+        st.markdown(
+            f"""
+            <div class="kpi-card green">
+                <div class="kpi-title">📅 This Week</div>
+                <div class="kpi-value">{week_entries}</div>
+                <div class="kpi-subtitle">New entries</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    
+    with kpi_col3:
+        st.markdown(
+            f"""
+            <div class="kpi-card orange">
+                <div class="kpi-title">📝 Total Entries</div>
+                <div class="kpi-value">{total_all_entries}</div>
+                <div class="kpi-subtitle">All records</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    
+    with kpi_col4:
+        st.markdown(
+            f"""
+            <div class="kpi-card purple">
+                <div class="kpi-title">⏱️ Total Hours</div>
+                <div class="kpi-value">{total_all_hours:.0f}h</div>
+                <div class="kpi-subtitle">Accumulated time</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    
+    st.markdown("<br>", unsafe_allow_html=True)
 
     col_log_start, col_log_end = st.columns(2)
 
@@ -828,8 +1214,16 @@ with tab_map["📊 Activity Log"]:
 # --- Audit Log Tab ---
 if show_audit_log_tab: # This block is now conditional
     with tab_map["🔍 Audit Log"]:
-        st.header("🔍 System Audit Log")
-        st.markdown("This log records significant actions performed within the application.")
+        # Modern Header
+        st.markdown(
+            """
+            <div class="main-header">
+                <h1>🔍 System Audit Log</h1>
+                <p>Monitor all system activities and security events</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
         df_audit_log = get_data_from_sheet(SHEET_ID, sheet_audit_log_title)
 
@@ -914,8 +1308,16 @@ if show_audit_log_tab: # This block is now conditional
 # --- NEW: Master Edit Tab (Site Admin only) ---
 if show_master_edit_tab:
     with tab_map["🛠️ Master Edit"]:
-        st.header("🛠️ Master Edit (Site Admin Only)")
-        st.markdown("Manage system-wide configurations and user accounts.")
+        # Modern Header
+        st.markdown(
+            """
+            <div class="main-header">
+                <h1>🛠️ Master Configuration</h1>
+                <p>System administration and management console</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
         current_user_id = st.session_state.user["Id"]
         current_username = st.session_state.user["Username"]
@@ -1009,8 +1411,16 @@ if show_master_edit_tab:
 
 # --- User Settings Tab
 with tab_map["⚙️ User Settings"]:
-    st.header("⚙️ User Settings")
-    st.markdown("Here you can manage your account preferences.")
+    # Modern Header
+    st.markdown(
+        """
+        <div class="main-header">
+            <h1>⚙️ Account Settings</h1>
+            <p>Manage your profile and preferences</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
     current_user_id = st.session_state.user["Id"]
     current_username = st.session_state.user["Username"]
