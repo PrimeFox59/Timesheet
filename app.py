@@ -1616,7 +1616,25 @@ with tab_map["⚙️ User Settings"]:
 # --- Developer Credits ---
 st.markdown("---")
 st.markdown(
-    "<p align='center'>This application was developed by <b>Galih Primananda</b> and <b>Iqlima Nur Hayati</b>, 2025.</p>",
+    """
+    <p align='center' style='font-size: 0.95rem; color: rgba(255,255,255,0.7);'>
+        This application was developed by 
+        <a href='https://www.linkedin.com/in/galihprime/' target='_blank' style='color: #667eea; text-decoration: none; font-weight: 700; transition: all 0.3s ease;'>
+            <b>Galih Primananda</b>
+        </a> 
+        and 
+        <a href='https://www.linkedin.com/in/iqlimanurhayati/' target='_blank' style='color: #667eea; text-decoration: none; font-weight: 700; transition: all 0.3s ease;'>
+            <b>Iqlima Nur Hayati</b>
+        </a>, 
+        2025.
+    </p>
+    <style>
+        a:hover {
+            color: #764ba2 !important;
+            text-decoration: underline !important;
+        }
+    </style>
+    """,
     unsafe_allow_html=True
 )
 
