@@ -371,21 +371,7 @@ if st.session_state.user is None:
         st.markdown('<div class="login-logo-container">', unsafe_allow_html=True)
         st.image("logo login.png", width=180)
         st.markdown('</div>', unsafe_allow_html=True)
-        
-        # App Title
-        st.markdown(
-            """
-            <div style="text-align: center; margin-bottom: 40px;">
-                <h1 class="app-title">Timesheet METSO</h1>
-                <p class="app-subtitle">Efficient Time & Activity Management Platform</p>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-        
-        # Login Card
-        st.markdown('<div class="login-card">', unsafe_allow_html=True)
-        
+
         # Login Header
         st.markdown(
             """
