@@ -369,7 +369,7 @@ if st.session_state.user is None:
     with col_center:
         # Logo
         st.markdown('<div class="login-logo-container">', unsafe_allow_html=True)
-        st.image("logo login.png", width=180)
+        st.image("logo login.png", width=500)
         st.markdown('</div>', unsafe_allow_html=True)
 
     if st.session_state.logged_out_after_password_change:
