@@ -490,7 +490,26 @@ export default function Home() {
             PT Prime Infinity Systems
           </a>
         </div>
-        <div className="text-[11px] text-slate-500 font-medium">Developed by Galih &amp; Iqlima</div>
+        <div className="text-[11px] text-slate-500 font-medium">
+          Developed by{' '}
+          <a
+            href="https://www.linkedin.com/in/galihprime/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-slate-600 hover:text-[#FF6B00] hover:underline transition font-semibold"
+          >
+            Galih
+          </a>
+          {' & '}
+          <a
+            href="https://www.linkedin.com/in/iqlimanurhayati/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-slate-600 hover:text-[#FF6B00] hover:underline transition font-semibold"
+          >
+            Iqlima
+          </a>
+        </div>
       </footer>
 
 
