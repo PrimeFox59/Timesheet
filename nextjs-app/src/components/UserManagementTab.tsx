@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Users, Search, RefreshCw, Eye, EyeOff, Shield, Award, UserPlus, Edit2, Trash2, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { apiUrl } from '@/lib/api';
 
 interface UserManagementTabProps {
   usersList: any[];
@@ -98,7 +99,7 @@ export default function UserManagementTab({ usersList, currentUser, onRefreshUse
     setStatusMsg(null);
 
     try {
-      const res = await fetch('/api/master/users', {
+      const res = await fetch(apiUrl('/api/master/users'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -131,7 +132,7 @@ export default function UserManagementTab({ usersList, currentUser, onRefreshUse
     setStatusMsg(null);
 
     try {
-      const res = await fetch('/api/master/users', {
+      const res = await fetch(apiUrl('/api/master/users'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -163,9 +164,10 @@ export default function UserManagementTab({ usersList, currentUser, onRefreshUse
     setStatusMsg(null);
 
     try {
-      const res = await fetch(`/api/master/users?id=${encodeURIComponent(deleteTargetUser.id)}`, {
+      const res = await fetch(apiUrl(`/api/master/users?id=${encodeURIComponent(deleteTargetUser.id)}`), {
         method: 'DELETE'
       });
+
 
       const data = await res.json();
       if (data.success) {

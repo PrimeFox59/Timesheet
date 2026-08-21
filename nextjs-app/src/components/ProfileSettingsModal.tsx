@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { X, User, Mail, Phone, Lock, Camera, Check, AlertCircle, Shield, KeyRound, Save, Trash2 } from 'lucide-react';
+import { apiUrl } from '@/lib/api';
 
 interface ProfileSettingsModalProps {
   user: any;
@@ -55,8 +56,9 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
     setSuccessMsg(null);
 
     try {
-      const res = await fetch('/api/user/settings', {
+      const res = await fetch(apiUrl('/api/user/settings'), {
         method: 'PUT',
+
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: user.id,
@@ -107,8 +109,9 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
     setLoading(true);
 
     try {
-      const res = await fetch('/api/user/settings', {
+      const res = await fetch(apiUrl('/api/user/settings'), {
         method: 'PUT',
+
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: user.id,

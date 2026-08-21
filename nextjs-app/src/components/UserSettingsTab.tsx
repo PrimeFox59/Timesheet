@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Sliders, Save, CheckCircle, AlertCircle, User as UserIcon } from 'lucide-react';
+import { apiUrl } from '@/lib/api';
 
 interface UserSettingsTabProps {
   currentUser: any;
@@ -25,8 +26,9 @@ export default function UserSettingsTab({ currentUser, areasList, onUpdateUser }
     setPrefMsg(null);
 
     try {
-      const res = await fetch('/api/user/settings', {
+      const res = await fetch(apiUrl('/api/user/settings'), {
         method: 'POST',
+
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'update_preferences',

@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Database, Plus, Trash2, KeyRound, CheckCircle2, AlertCircle } from 'lucide-react';
+import { apiUrl } from '@/lib/api';
 
 interface MasterEditTabProps {
   currentUser: any;
@@ -26,7 +27,7 @@ export default function MasterEditTab({ currentUser, areasList, usersList, onRef
 
     setAreaMsg(null);
     try {
-      const res = await fetch('/api/master/areas', {
+      const res = await fetch(apiUrl('/api/master/areas'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -57,7 +58,7 @@ export default function MasterEditTab({ currentUser, areasList, usersList, onRef
 
     setAreaMsg(null);
     try {
-      const res = await fetch('/api/master/areas', {
+      const res = await fetch(apiUrl('/api/master/areas'), {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -86,8 +87,9 @@ export default function MasterEditTab({ currentUser, areasList, usersList, onRef
 
     setUserMsg(null);
     try {
-      const res = await fetch('/api/master/users', {
+      const res = await fetch(apiUrl('/api/master/users'), {
         method: 'POST',
+
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           target_user_id: selectedUserId,

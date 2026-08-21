@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Database, Upload, Download, CheckCircle, AlertCircle, FileSpreadsheet, ExternalLink, RefreshCw, Server, RotateCcw, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { apiUrl } from '@/lib/api';
 
 interface DatabaseManagementTabProps {
   currentUser: any;
@@ -42,7 +43,7 @@ export default function DatabaseManagementTab({ currentUser, onRefreshAll }: Dat
       const formData = new FormData();
       formData.append('file', selectedFile);
 
-      const res = await fetch('/api/database/migrate', {
+      const res = await fetch(apiUrl('/api/database/migrate'), {
         method: 'POST',
         body: formData
       });
@@ -74,7 +75,7 @@ export default function DatabaseManagementTab({ currentUser, onRefreshAll }: Dat
   };
 
   const handleDownloadBackup = () => {
-    window.open('/api/database/backup', '_blank');
+    window.open(apiUrl('/api/database/backup'), '_blank');
   };
 
   const handleConfirmResetDatabase = async () => {
@@ -82,11 +83,12 @@ export default function DatabaseManagementTab({ currentUser, onRefreshAll }: Dat
     setResetResult(null);
 
     try {
-      const res = await fetch('/api/database/reset', {
+      const res = await fetch(apiUrl('/api/database/reset'), {
         method: 'POST'
       });
 
       const data = await res.json();
+
 
       if (data.success) {
         setResetResult({

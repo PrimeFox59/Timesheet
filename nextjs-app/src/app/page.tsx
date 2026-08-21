@@ -14,7 +14,9 @@ import DatabaseManagementTab from '@/components/DatabaseManagementTab';
 import CodexTab from '@/components/CodexTab';
 import WorkhourAnalyticsTab from '@/components/WorkhourAnalyticsTab';
 import ProfileSettingsModal from '@/components/ProfileSettingsModal';
+import { apiUrl } from '@/lib/api';
 import { Clock, Layers, ShieldCheck, Database, Sliders, Users, Server, LogIn, Lock, User as UserIcon, AlertCircle, FileCheck, BarChart3 } from 'lucide-react';
+
 
 export default function Home() {
   const [user, setUser] = useState<any>(null);
@@ -53,7 +55,7 @@ export default function Home() {
 
   const fetchMasterAreas = useCallback(async () => {
     try {
-      const res = await fetch('/api/master/areas');
+      const res = await fetch(apiUrl('/api/master/areas'));
       const data = await res.json();
       if (data.success && Array.isArray(data.data) && data.data.length > 0) {
         setAreasList(data.data.map((a: any) => a.name));
@@ -65,7 +67,7 @@ export default function Home() {
 
   const fetchMasterUsers = useCallback(async () => {
     try {
-      const res = await fetch('/api/master/users');
+      const res = await fetch(apiUrl('/api/master/users'));
       const data = await res.json();
       if (data.success && Array.isArray(data.data)) {
         setUsersList(data.data);
@@ -111,11 +113,12 @@ export default function Home() {
     setLoggingIn(true);
 
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch(apiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: loginId.trim(), password: loginPassword })
       });
+
 
       const data = await res.json();
 

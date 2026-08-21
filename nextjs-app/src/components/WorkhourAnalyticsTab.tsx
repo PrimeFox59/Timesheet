@@ -5,6 +5,7 @@ import {
   BarChart3, TrendingUp, PieChart, Zap, Calendar, 
   RefreshCw, Award, MapPin, Flame, CalendarRange
 } from 'lucide-react';
+import { apiUrl } from '@/lib/api';
 
 interface WorkhourAnalyticsTabProps {
   currentUser: any;
@@ -47,8 +48,9 @@ export default function WorkhourAnalyticsTab({ currentUser }: WorkhourAnalyticsT
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/codex/analytics?month=${selectedMonth}&year=${selectedYear}`);
+      const res = await fetch(apiUrl(`/api/codex/analytics?month=${selectedMonth}&year=${selectedYear}`));
       const data = await res.json();
+
       if (data.success) {
         setAnalytics({
           dailyTimeline: data.dailyTimeline || [],

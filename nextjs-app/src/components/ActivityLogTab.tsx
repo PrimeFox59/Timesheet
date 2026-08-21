@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, Calendar, Clock, User, MapPin, RefreshCw, BarChart2, Layers } from 'lucide-react';
+import { apiUrl } from '@/lib/api';
 
 interface ActivityLogTabProps {
   currentUser: any;
@@ -56,8 +57,9 @@ export default function ActivityLogTab({ currentUser, usersList, areasList }: Ac
       if (selectedArea) query.append('area', selectedArea);
       query.append('limit', String(activeLimit));
 
-      const res = await fetch(`/api/activity-log?${query.toString()}`);
+      const res = await fetch(apiUrl(`/api/activity-log?${query.toString()}`));
       const data = await res.json();
+
       if (data.success) {
         setRecords(data.data || []);
         setSummary(data.summary || { totalEntries: 0, totalHours: 0, totalOvertime: 0, uniqueUsers: 0 });

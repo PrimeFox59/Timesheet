@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, RefreshCw, Filter, CheckCircle2, XCircle } from 'lucide-react';
+import { apiUrl } from '@/lib/api';
 
 interface AuditLogTabProps {
   currentUser: any;
@@ -27,8 +28,9 @@ export default function AuditLogTab({ currentUser }: AuditLogTabProps) {
       if (selectedAction) query.append('action', selectedAction);
       if (selectedStatus) query.append('status', selectedStatus);
 
-      const res = await fetch(`/api/audit-log?${query.toString()}`);
+      const res = await fetch(apiUrl(`/api/audit-log?${query.toString()}`));
       const data = await res.json();
+
       if (data.success) {
         setAuditLogs(data.data || []);
       }

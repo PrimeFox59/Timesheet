@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Calendar, Sparkles, CheckCircle2, AlertCircle, RefreshCw, FileSpreadsheet, Download } from 'lucide-react';
+import { apiUrl } from '@/lib/api';
 
 interface TimesheetEntryTabProps {
   user: any;
@@ -76,8 +77,9 @@ export default function TimesheetEntryTab({ user, areasList }: TimesheetEntryTab
 
     const loadTimesheetData = async () => {
       try {
-        const res = await fetch(`/api/timesheet?userId=${encodeURIComponent(user.id)}&startDate=${startDate}&endDate=${endDate}`);
+        const res = await fetch(apiUrl(`/api/timesheet?userId=${encodeURIComponent(user.id)}&startDate=${startDate}&endDate=${endDate}`));
         const data = await res.json();
+
         const savedMap = new Map<string, any>();
         
         if (data.success && Array.isArray(data.data)) {
@@ -234,8 +236,9 @@ export default function TimesheetEntryTab({ user, areasList }: TimesheetEntryTab
     }));
 
     try {
-      const res = await fetch('/api/timesheet', {
+      const res = await fetch(apiUrl('/api/timesheet'), {
         method: 'POST',
+
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: user.id,

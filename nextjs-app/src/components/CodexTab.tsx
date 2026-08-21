@@ -6,6 +6,7 @@ import {
   RefreshCw, Eye, PenTool, Upload, Trash2, Check, X, FileSpreadsheet, ShieldAlert, Zap, Bookmark,
   Search, ArrowUpDown, ArrowUp, ArrowDown, Filter
 } from 'lucide-react';
+import { apiUrl } from '@/lib/api';
 
 interface CodexTabProps {
   currentUser: any;
@@ -74,8 +75,9 @@ export default function CodexTab({ currentUser, usersList }: CodexTabProps) {
   const fetchMonitoringData = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/codex/monitoring?month=${selectedMonth}`);
+      const res = await fetch(apiUrl(`/api/codex/monitoring?month=${selectedMonth}`));
       const data = await res.json();
+
       if (data.success) {
         setMonitoringData(data.data || []);
         setKpi(data.kpi || {
@@ -173,7 +175,7 @@ export default function CodexTab({ currentUser, usersList }: CodexTabProps) {
       const lastDay = new Date(y, m, 0).getDate();
       const endDate = `${selectedMonth}-${String(lastDay).padStart(2, '0')}`;
 
-      const res = await fetch(`/api/timesheet?userId=${encodeURIComponent(userItem.user_id)}&startDate=${startDate}&endDate=${endDate}`);
+      const res = await fetch(apiUrl(`/api/timesheet?userId=${encodeURIComponent(userItem.user_id)}&startDate=${startDate}&endDate=${endDate}`));
       const data = await res.json();
       if (data.success) {
         setUserTimesheetEntries(data.data || []);
@@ -193,8 +195,9 @@ export default function CodexTab({ currentUser, usersList }: CodexTabProps) {
     setSignatureMode('draw');
 
     try {
-      const res = await fetch(`/api/codex/approve?userId=${encodeURIComponent(userItem.user_id)}&month=${selectedMonth}`);
+      const res = await fetch(apiUrl(`/api/codex/approve?userId=${encodeURIComponent(userItem.user_id)}&month=${selectedMonth}`));
       const data = await res.json();
+
       if (data.success && data.data?.signature_data) {
         setSignatureData(data.data.signature_data);
       }
@@ -313,7 +316,7 @@ export default function CodexTab({ currentUser, usersList }: CodexTabProps) {
     setApprovalMessage(null);
 
     try {
-      const res = await fetch('/api/codex/approve', {
+      const res = await fetch(apiUrl('/api/codex/approve'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -361,8 +364,9 @@ export default function CodexTab({ currentUser, usersList }: CodexTabProps) {
     const targetUserIds = filteredAndSortedData.map(u => u.user_id);
 
     try {
-      const res = await fetch('/api/codex/approve-all', {
+      const res = await fetch(apiUrl('/api/codex/approve-all'), {
         method: 'POST',
+
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           month: selectedMonth,
