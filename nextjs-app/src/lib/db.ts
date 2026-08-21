@@ -1,7 +1,10 @@
-import Database from 'better-sqlite3';
 import path from 'path';
 
+// Dynamically require better-sqlite3 at runtime to avoid Webpack native binary bundling issue
+const Database = eval("require")("better-sqlite3");
+
 const dbPath = path.join(process.cwd(), 'timesheet.db');
+
 
 let db: any;
 
