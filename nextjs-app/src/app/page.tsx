@@ -166,7 +166,7 @@ export default function Home() {
       <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center">
         <div className="text-center space-y-3">
           <img
-            src="/logo_login.png"
+            src={apiUrl("/logo.png")}
             alt="Metso"
             className="h-16 w-auto mx-auto object-contain animate-pulse drop-shadow-xl"
           />
@@ -219,9 +219,9 @@ export default function Home() {
               
               <div className="text-center py-2">
                 <img
-                  src="/logo_login.png"
+                  src={apiUrl("/logo.png")}
                   alt="Metso"
-                  className="h-16 max-w-[240px] mx-auto object-contain drop-shadow-md"
+                  className="h-16 max-w-[280px] mx-auto object-contain drop-shadow-md"
                 />
               </div>
 
