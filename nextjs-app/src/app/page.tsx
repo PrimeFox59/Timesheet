@@ -242,7 +242,7 @@ export default function Home() {
                     type="text"
                     value={loginId}
                     onChange={e => setLoginId(e.target.value)}
-                    placeholder="e.g. prime, COM116, COM001"
+                    placeholder="Enter your User ID"
                     className="w-full px-3.5 py-2.5 rounded-xl text-xs glass-input font-medium"
                     required
                   />
@@ -273,27 +273,6 @@ export default function Home() {
                 </button>
               </form>
 
-              {/* Quick Demo Login Help */}
-              <div className="pt-4 border-t border-slate-200/80 space-y-2 text-[11px] text-slate-500">
-                <span className="font-bold text-slate-700 uppercase tracking-wider text-[10px] block">Demo Accounts:</span>
-                <div className="grid grid-cols-2 gap-1.5 font-mono text-[10px]">
-                  <button type="button" onClick={() => { setLoginId('prime'); setLoginPassword('zzz'); }} className="p-1.5 rounded-lg bg-orange-100 hover:bg-orange-200 text-orange-950 text-left border border-orange-300 truncate col-span-2 font-bold">
-                    🔑 <strong>prime</strong> / <strong>zzz</strong> (Superuser - Open Access)
-                  </button>
-                  <button type="button" onClick={() => { setLoginId('COM116'); setLoginPassword('Metso'); }} className="p-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-950 text-left border border-orange-200/60 truncate">
-                    <strong>COM116</strong> (Site Admin)
-                  </button>
-                  <button type="button" onClick={() => { setLoginId('COM001'); setLoginPassword('Metso'); }} className="p-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-950 text-left border border-orange-200/60 truncate">
-                    <strong>COM001</strong> (Director)
-                  </button>
-                  <button type="button" onClick={() => { setLoginId('COM006'); setLoginPassword('Metso'); }} className="p-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-950 text-left border border-orange-200/60 truncate">
-                    <strong>COM006</strong> (Member)
-                  </button>
-                  <button type="button" onClick={() => { setLoginId('COM200'); setLoginPassword('Metso'); }} className="p-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-950 text-left border border-orange-200/60 truncate">
-                    <strong>COM200</strong> (Member)
-                  </button>
-                </div>
-              </div>
 
             </div>
           </div>
