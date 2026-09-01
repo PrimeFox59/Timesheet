@@ -101,6 +101,47 @@ body {
   }
 }
 
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes pulseAura {
+  0%, 100% {
+    transform: scale(0.95);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 0.7;
+  }
+}
+
+@keyframes spinSlow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes shimmerGlow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
 .animate-smooth-fade {
   animation: smoothFadeIn 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   will-change: opacity, transform;
@@ -109,6 +150,34 @@ body {
 .animate-smooth-scale {
   animation: smoothScaleIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   will-change: opacity, transform;
+}
+
+.animate-float-slow {
+  animation: floatSlow 4.5s ease-in-out infinite;
+  will-change: transform;
+}
+
+.animate-pulse-aura {
+  animation: pulseAura 3.5s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.animate-spin-slow {
+  animation: spinSlow 24s linear infinite;
+  will-change: transform;
+}
+
+.animate-spin-reverse {
+  animation: spinSlow 30s linear infinite reverse;
+  will-change: transform;
+}
+
+.text-gradient-shimmer {
+  background: linear-gradient(135deg, #090909 0%, #FF6B00 50%, #090909 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmerGlow 6s ease infinite;
 }
 
 /* Staggered Delay Classes */

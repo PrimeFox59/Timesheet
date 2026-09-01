@@ -325,16 +325,60 @@ export default function Home() {
           <div className="max-w-md mx-auto my-12 animate-in fade-in zoom-in-95 duration-200">
             <div className="glass-card rounded-3xl p-8 space-y-6 shadow-2xl relative overflow-hidden">
               
-              <div className="text-center space-y-2">
-                <div className="inline-flex items-center justify-center p-3 bg-orange-50 rounded-2xl mb-1 shadow-xs border border-orange-100">
-                  <Clock className="w-8 h-8 text-[#FF6B00]" />
+              <div className="text-center space-y-3 relative select-none">
+                {/* Background Ambient Glowing Aura */}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-36 h-36 bg-gradient-to-br from-orange-400/25 via-[#FF6B00]/20 to-teal-400/15 rounded-full blur-2xl pointer-events-none animate-pulse-aura" />
+
+                {/* Layered 3D Motion Badge with Dual Orbital Rings */}
+                <div className="relative inline-flex items-center justify-center animate-float-slow">
+                  {/* Outer Orbit Ring */}
+                  <div className="absolute -inset-3 rounded-3xl border border-dashed border-orange-400/40 animate-spin-slow pointer-events-none" />
+                  
+                  {/* Inner Counter-Rotating Orbit Ring */}
+                  <div className="absolute -inset-1.5 rounded-2xl border border-dotted border-orange-300/60 animate-spin-reverse pointer-events-none" />
+
+                  {/* Core Glassmorphic Badge */}
+                  <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-white via-orange-50/80 to-orange-100/60 border border-white shadow-xl shadow-orange-500/15 flex items-center justify-center backdrop-blur-md">
+                    <div className="relative flex items-center justify-center">
+                      {/* Metso Accent Glow */}
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-orange-500 to-[#FF6B00] text-white flex items-center justify-center shadow-md shadow-orange-500/30">
+                        <Clock className="w-6 h-6 animate-pulse" />
+                      </div>
+                      
+                      {/* Floating Mini Tech Star */}
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-white shadow-xs animate-ping" />
+                    </div>
+                  </div>
                 </div>
-                <h1 className="text-2xl font-black tracking-tight text-slate-900">
-                  Metso
-                </h1>
-                <p className="text-xs text-slate-500 font-medium">
-                  Commissioning Management System
-                </p>
+
+                {/* Brand Title & Interactive Shimmer */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-center gap-2">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 115.4 31.6"
+                      className="h-6 w-auto fill-slate-900 drop-shadow-xs"
+                      aria-label="Metso Logo"
+                    >
+                      <path d="M15.4 21.3L5.4 0L0 0L0 31.2L5.2 31.2L5.2 10.6L13.1 27.4L17.7 27.4L25.6 10.6L25.6 31.2L30.9 31.2L30.9 0L25.5 0L15.4 21.3Z" />
+                      <path d="M84.8 17.1L81.1 16.4C79.3 16 78.5 15.3 78.5 14C78.5 12 80.8 11.3 82.8 11.3C84.7 11.3 86.7 11.8 88.5 13L90.9 9.2C88.8 7.9 86 7 82.7 7C77.8 7 73.5 9.4 73.5 14.4C73.5 18.1 75.6 20.2 79.9 21.1L83.6 21.8C85.4 22.2 86.1 23 86.1 24.4C86.1 26 84.8 27.1 82.3 27.1C80.5 27.1 78.3 26.6 75.9 24.4L73.2 28C75.3 30.3 78.7 31.5 82.3 31.5C87.2 31.5 91.3 29.1 91.3 24.1C91.2 20 88.9 17.9 84.8 17.1" />
+                      <path d="M44.8 7.1C38.4 7.1 34.4 12.9 34.4 19.2C34.4 26 38.2 31.5 45.3 31.5C48.5 31.5 51.9 30.3 54.3 28.2L51.9 24.4C50.2 25.9 48.2 26.9 45.5 26.9C42.2 26.9 39.8 24.3 39.5 21.5L55.1 21.5C55.1 20.7 55.2 19.9 55.2 19.1C55.2 11.4 51.4 7.1 44.8 7.1M39.6 17.2C39.9 13.2 42.6 11.5 44.8 11.5C48 11.5 49.9 13.5 50 17.1L50 17.2L39.6 17.2L39.6 17.2Z" />
+                      <path d="M63.6 23.8L63.6 12.1L70.3 12.1L70.3 7.5L63.6 7.5L63.6 1.90735e-06L58.5 1.90735e-06L58.5 24.7C58.5 28.9 61.1 31.5 65.3 31.5C67.7 31.5 69.7 30.9 71.3 30.1L70 25.8C67.5 27 63.5 27.5 63.6 23.8" />
+                      <path d="M104.5 7.1C97.4 7.1 93.6 12.4 93.6 19.3C93.6 26.2 97.4 31.6 104.5 31.6C111.6 31.6 115.4 26.3 115.4 19.3C115.4 12.3 111.5 7.1 104.5 7.1M104.5 26.7C100.8 26.7 98.8 24 98.8 19.2C98.8 15 100.3 11.8 104.5 11.8C108.2 11.8 110.2 14.3 110.2 19.2C110.2 24.2 108.2 26.7 104.5 26.7" />
+                    </svg>
+                  </div>
+                  
+                  <div className="pt-1">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/90 text-white text-[11px] font-bold tracking-wide shadow-md border border-slate-700/80 backdrop-blur-md">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B00] animate-pulse" />
+                      <span>Commissioning Management System</span>
+                    </span>
+                  </div>
+                  
+                  <p className="text-[11px] text-slate-500 font-medium pt-0.5">
+                    Site Timesheet &amp; Operations Platform
+                  </p>
+                </div>
               </div>
 
               <form onSubmit={handleLogin} className="space-y-4">
