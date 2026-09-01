@@ -14,14 +14,16 @@ import DatabaseManagementTab from '@/components/DatabaseManagementTab';
 import CodexTab from '@/components/CodexTab';
 import WorkhourAnalyticsTab from '@/components/WorkhourAnalyticsTab';
 import ProfileSettingsModal from '@/components/ProfileSettingsModal';
+import FaceIdLoginModal from '@/components/FaceIdLoginModal';
 import { apiUrl } from '@/lib/api';
-import { Clock, Layers, ShieldCheck, Database, Sliders, Users, Server, LogIn, Lock, User as UserIcon, AlertCircle, FileCheck, BarChart3 } from 'lucide-react';
+import { Clock, Layers, ShieldCheck, Database, Sliders, Users, Server, LogIn, Lock, User as UserIcon, AlertCircle, FileCheck, BarChart3, ScanFace } from 'lucide-react';
 
 
 export default function Home() {
   const [user, setUser] = useState<any>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showFaceIdModal, setShowFaceIdModal] = useState(false);
   
   // Navigation categories: 'timesheet' | 'user_management' | 'codex' | 'audit_log' | 'database'
   const [activeCategory, setActiveCategory] = useState<string>('timesheet');
@@ -140,6 +142,15 @@ export default function Home() {
     } finally {
       setLoggingIn(false);
     }
+  };
+
+  const handleFaceLoginSuccess = (authenticatedUser: any) => {
+    setUser(authenticatedUser);
+    localStorage.setItem('metso_user_session', JSON.stringify(authenticatedUser));
+    const savedCategory = localStorage.getItem('metso_active_category') || 'timesheet';
+    const savedSubTab = localStorage.getItem('metso_active_subtab') || 'timesheet_entry';
+    setActiveCategory(savedCategory);
+    setActiveSubTab(savedSubTab);
   };
 
   const handleLogout = () => {
@@ -273,8 +284,32 @@ export default function Home() {
                 </button>
               </form>
 
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-slate-300/80"></div>
+                <span className="flex-shrink mx-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">or biometric</span>
+                <div className="flex-grow border-t border-slate-300/80"></div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowFaceIdModal(true)}
+                className="w-full py-3 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-md flex items-center justify-center gap-2.5 transition-all border border-slate-700/60 group hover:scale-[1.01]"
+              >
+                <div className="w-5 h-5 rounded-lg bg-orange-500/20 flex items-center justify-center text-[#FF6B00] group-hover:scale-110 transition-transform">
+                  <ScanFace className="w-3.5 h-3.5" />
+                </div>
+                <span>AI Face ID Login</span>
+                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30">v2.0</span>
+              </button>
 
             </div>
+
+            {/* AI Face ID Login Modal */}
+            <FaceIdLoginModal
+              isOpen={showFaceIdModal}
+              onClose={() => setShowFaceIdModal(false)}
+              onSuccess={handleFaceLoginSuccess}
+            />
           </div>
         ) : (
           /* LOGGED IN DASHBOARD */
