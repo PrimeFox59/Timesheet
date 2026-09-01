@@ -1,22 +1,46 @@
 import path from 'path';
 
-// Dynamically require better-sqlite3 at runtime to avoid Webpack native binary bundling issue
-const Database = eval("require")("better-sqlite3");
-
 const dbPath = path.join(process.cwd(), 'timesheet.db');
 
 let db: any;
 
 try {
-  db = new Database(dbPath);
-  // High performance SQLite tuning
+  // 1. Try better-sqlite3 first
+  const BetterDatabase = eval("require")("better-sqlite3");
+  db = new BetterDatabase(dbPath);
   db.pragma('journal_mode = WAL');
   db.pragma('synchronous = NORMAL');
   db.pragma('temp_store = MEMORY');
-  db.pragma('cache_size = -64000'); // 64MB cache
-} catch (e) {
-  console.error("Failed to connect to SQLite database:", e);
-  throw e;
+  db.pragma('cache_size = -64000');
+} catch (betterErr) {
+  try {
+    // 2. Seamless fallback to Node.js native node:sqlite (Node 22.5+ / Node 24+)
+    const { DatabaseSync } = eval("require")("node:sqlite");
+    const rawDb = new DatabaseSync(dbPath);
+    db = {
+      raw: rawDb,
+      exec: (sql: string) => rawDb.exec(sql),
+      pragma: (pragmaSql: string) => {
+        try {
+          rawDb.exec(`PRAGMA ${pragmaSql};`);
+        } catch (e) {}
+      },
+      prepare: (sql: string) => {
+        const stmt = rawDb.prepare(sql);
+        return {
+          all: (...params: any[]) => stmt.all(...params),
+          get: (...params: any[]) => stmt.get(...params),
+          run: (...params: any[]) => stmt.run(...params)
+        };
+      }
+    };
+    db.pragma('journal_mode = WAL');
+    db.pragma('synchronous = NORMAL');
+    db.pragma('temp_store = MEMORY');
+  } catch (nativeErr) {
+    console.error("Failed to connect to SQLite database (both better-sqlite3 and node:sqlite failed):", betterErr, nativeErr);
+    throw betterErr;
+  }
 }
 
 // Initialize tables and indexes
