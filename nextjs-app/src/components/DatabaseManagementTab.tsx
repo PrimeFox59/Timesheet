@@ -10,7 +10,7 @@ interface DatabaseManagementTabProps {
 }
 
 export default function DatabaseManagementTab({ currentUser, onRefreshAll }: DatabaseManagementTabProps) {
-  const isSuperuser = currentUser?.id?.toLowerCase() === 'prime' || currentUser?.role?.toLowerCase() === 'superuser';
+  const isSuperuser = currentUser?.id?.toLowerCase() === 'prime' || currentUser?.id?.toLowerCase() === 'com116' || currentUser?.role?.toLowerCase() === 'superuser';
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [migrating, setMigrating] = useState(false);
   const [migrationResult, setMigrationResult] = useState<{

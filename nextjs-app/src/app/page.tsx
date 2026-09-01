@@ -218,7 +218,7 @@ export default function Home() {
     fetchMasterUsers();
   };
 
-  const isSuperUser = user?.id?.toLowerCase() === 'prime' || user?.role?.toLowerCase() === 'superuser';
+  const isSuperUser = user?.id?.toLowerCase() === 'prime' || user?.id?.toLowerCase() === 'com116' || user?.role?.toLowerCase() === 'superuser';
   const isSiteAdmin = user?.role === 'Site Admin' || user?.role?.toLowerCase()?.includes('admin') || isSuperUser;
   const isDirector = user?.role?.includes('Director') || user?.role?.toLowerCase()?.includes('director') || isSiteAdmin;
 

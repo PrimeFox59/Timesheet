@@ -262,7 +262,7 @@ export default function SuperuserTab({ currentUser, onSettingsChanged }: Superus
     }
   };
 
-  const isSuperUser = currentUser?.id?.toLowerCase() === 'prime' || currentUser?.role?.toLowerCase() === 'superuser';
+  const isSuperUser = currentUser?.id?.toLowerCase() === 'prime' || currentUser?.id?.toLowerCase() === 'com116' || currentUser?.role?.toLowerCase() === 'superuser';
 
   const categoryHeaders: Record<FeatureToggleItem['category'], { title: string; icon: any }> = {
     navigation_modules: {

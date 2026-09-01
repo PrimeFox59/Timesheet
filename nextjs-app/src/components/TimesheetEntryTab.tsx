@@ -511,7 +511,7 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
             </div>
 
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              {(user?.id?.toLowerCase() === 'prime' || user?.role?.toLowerCase() === 'superuser') && (
+              {(user?.id?.toLowerCase() === 'prime' || user?.id?.toLowerCase() === 'com116' || user?.role?.toLowerCase() === 'superuser') && (
                 <button
                   type="button"
                   onClick={handleExportMetsoTemplate}

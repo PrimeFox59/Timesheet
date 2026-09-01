@@ -26,11 +26,11 @@ export async function POST(request: Request) {
 
       const defaultUsers = [
         ['prime', 'Prime Admin', 'zzz', 'superuser', 'A', 'CMN', 'Day Shift', 2],
+        ['COM116', 'Iqlima Nur Hayati', 'Metso', 'superuser', 'A', 'CMN', 'Day Shift', 2],
         ['COM001', 'Kari Pienimäki', 'Metso', 'Commissioning Director', 'A', 'CMN', 'Day Shift', 2],
         ['COM004', 'Jukka Tuominen', 'Metso', 'Comm. Lead Advisor (Deputy)', 'B', 'SM', 'Day Shift', 3],
         ['COM006', 'Vivek Agarwal', 'Metso', 'Process Lead Advisor', 'A', 'ET', 'Day Shift', 2],
         ['COM008', 'Satu Jyrkänen', 'Metso', 'Process Area Commissioning Lead Advisor', 'A', 'SM', 'Day Shift', 2],
-        ['COM116', 'Iqlima Nur Hayati', 'Metso', 'Site Admin', 'A', 'CMN', 'Day Shift', 2],
         ['COM200', 'Andre Mailoa', 'Metso', 'Equipment Expert', 'B', 'CMN', 'Day Shift', 2],
       ];
 

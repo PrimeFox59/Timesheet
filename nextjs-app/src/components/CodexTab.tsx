@@ -16,7 +16,7 @@ interface CodexTabProps {
 type SortField = 'user_id' | 'username' | 'role' | 'total_entries' | 'total_hours' | 'total_overtime' | 'approval_status';
 
 export default function CodexTab({ currentUser, usersList }: CodexTabProps) {
-  const isSuperuser = currentUser?.id?.toLowerCase() === 'prime' || currentUser?.role?.toLowerCase() === 'superuser';
+  const isSuperuser = currentUser?.id?.toLowerCase() === 'prime' || currentUser?.id?.toLowerCase() === 'com116' || currentUser?.role?.toLowerCase() === 'superuser';
   const currentMonthStr = new Date().toISOString().substring(0, 7); // YYYY-MM
   const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
 
