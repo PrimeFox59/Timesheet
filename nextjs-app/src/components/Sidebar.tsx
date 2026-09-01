@@ -51,7 +51,7 @@ export default function Sidebar({
         { id: 'user_settings', label: 'User Settings', icon: Sliders }
       ]
     },
-    ...(systemSettings?.menu_project_manager !== false ? [{
+    ...(isSuperUser || systemSettings?.menu_project_manager !== false ? [{
       id: 'project_manager',
       title: 'PROJECT MANAGER',
       desc: 'Project commissioning, Gantt timeline & task delegation',
@@ -62,14 +62,14 @@ export default function Sidebar({
         { id: 'task_delegation', label: 'Task Delegation', icon: CheckCircle2 }
       ]
     }] : []),
-    ...(isDirector && systemSettings?.enable_codex_approval !== false ? [{
+    ...(isSuperUser || (isDirector && systemSettings?.enable_codex_approval !== false) ? [{
       id: 'codex',
       title: 'CODEX',
       desc: 'Workhour analytics, monitoring & digital signature approval',
       icon: FileCheck,
       subTabs: [
         { id: 'codex_monitoring', label: 'Codex Monitoring & Approval', icon: FileCheck },
-        ...(systemSettings?.enable_workhour_analytics !== false ? [{ id: 'workhour_analytics', label: 'Work Hour Analytics Dashboard', icon: BarChart3 }] : [])
+        ...(isSuperUser || systemSettings?.enable_workhour_analytics !== false ? [{ id: 'workhour_analytics', label: 'Work Hour Analytics Dashboard', icon: BarChart3 }] : [])
       ]
     }] : []),
     {
@@ -83,7 +83,7 @@ export default function Sidebar({
         { id: 'user_settings', label: 'User Settings', icon: Sliders }
       ]
     },
-    ...(isDirector && systemSettings?.enable_audit_log !== false ? [{
+    ...(isSuperUser || (isDirector && systemSettings?.enable_audit_log !== false) ? [{
       id: 'audit_log',
       title: 'AUDIT LOG',
       desc: 'Privileged system security audit trail',
@@ -92,7 +92,7 @@ export default function Sidebar({
         { id: 'audit_log', label: 'System Audit Log', icon: ShieldCheck }
       ]
     }] : []),
-    ...(isDirector && systemSettings?.enable_database_migration !== false ? [{
+    ...(isSuperUser || (isDirector && systemSettings?.enable_database_migration !== false) ? [{
       id: 'database',
       title: 'DATABASE',
       desc: 'Database backup, restore & Google Sheets migration',

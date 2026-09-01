@@ -271,14 +271,14 @@ export default function Home() {
           />
 
           {/* Right Sidebar Live Online Users */}
-          {systemSettings?.feature_online_users !== false && (
+          {(isSuperUser || systemSettings?.feature_online_users !== false) && (
             <RightSidebarOnlineUsers
               currentUser={user}
             />
           )}
 
           {/* Floating Realtime Chat Widget */}
-          {systemSettings?.feature_realtime_chat !== false && (
+          {(isSuperUser || systemSettings?.feature_realtime_chat !== false) && (
             <RealtimeChatWidget
               currentUser={user}
               usersList={usersList}
