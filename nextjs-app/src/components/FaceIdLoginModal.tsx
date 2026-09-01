@@ -11,14 +11,27 @@ import {
   CheckCircle2, 
   Sparkles, 
   SwitchCamera,
-  ShieldCheck,
-  Zap
+  Zap,
+  Activity
 } from 'lucide-react';
+
+export interface UserSessionData {
+  id: string;
+  username: string;
+  role: string;
+  grade?: string;
+  preferred_areas?: string;
+  preferred_shift?: string;
+  number_of_areas?: number;
+  phone?: string;
+  email?: string;
+  avatar?: string;
+}
 
 interface FaceIdLoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (user: any) => void;
+  onSuccess: (user: UserSessionData) => void;
 }
 
 type ScanStatus = 'idle' | 'scanning' | 'searching' | 'unrecognized' | 'success' | 'error';
@@ -27,22 +40,25 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const scanTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Non-blocking continuous loop refs
+  const isLoopActiveRef = useRef<boolean>(false);
+  const loopTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isExecutingRef = useRef<boolean>(false);
+  const scanLoopWorkerRef = useRef<() => Promise<void>>(async () => {});
 
   const [scanStatus, setScanStatus] = useState<ScanStatus>('idle');
-  const [statusMessage, setStatusMessage] = useState<string>('Initializing AI Face Camera...');
+  const [statusMessage, setStatusMessage] = useState<string>('Memulai kamera AI...');
   const [progress, setProgress] = useState<number>(0);
-  const [scanCount, setScanCount] = useState<number>(0);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [isAutoScanActive, setIsAutoScanActive] = useState<boolean>(true);
-  const [matchedUser, setMatchedUser] = useState<any>(null);
 
-  // Stop camera helper
+  // Stop camera stream & clear timers
   const stopCamera = useCallback(() => {
-    if (scanTimerRef.current) {
-      clearTimeout(scanTimerRef.current);
-      scanTimerRef.current = null;
+    isLoopActiveRef.current = false;
+    if (loopTimeoutRef.current) {
+      clearTimeout(loopTimeoutRef.current);
+      loopTimeoutRef.current = null;
     }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
@@ -53,17 +69,110 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
     }
   }, []);
 
+  // Capture current video frame as Base64 JPEG
+  const captureFrame = useCallback((): string | null => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return null;
+    if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) return null;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.85);
+  }, []);
+
+  // CORE CONTINUOUS SCAN LOOP WORKER
+  const runScanCycle = useCallback(async () => {
+    if (!isLoopActiveRef.current || isExecutingRef.current) return;
+
+    const video = videoRef.current;
+    if (!video || video.readyState < 2 || video.videoWidth === 0) {
+      if (isLoopActiveRef.current) {
+        loopTimeoutRef.current = setTimeout(() => {
+          scanLoopWorkerRef.current();
+        }, 200);
+      }
+      return;
+    }
+
+    isExecutingRef.current = true;
+
+    try {
+      const frameData = captureFrame();
+
+      if (frameData) {
+        setScanStatus('scanning');
+        setStatusMessage('Memindai & mencocokkan kontur wajah...');
+        setProgress(75);
+
+        const res = await fetch(apiUrl('/api/auth/face-login'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: frameData })
+        });
+
+        const data = await res.json();
+
+        if (data.success && data.user) {
+          // MATCH FOUND -> STOP LOOP & AUTO-LOGIN
+          isLoopActiveRef.current = false;
+          setScanStatus('success');
+          setStatusMessage(`Wajah Dikenali: ${data.user.username} (${data.user.id})`);
+          setProgress(100);
+
+          setTimeout(() => {
+            onSuccess(data.user);
+            onClose();
+          }, 1000);
+          return;
+        } else {
+          // NOT MATCHED -> UPDATE HUD, KEEP SCANNING CONTINUOUSLY!
+          setScanStatus('unrecognized');
+          setStatusMessage('Face not recognized. Scanning ulang otomatis...');
+          setProgress(100);
+        }
+      } else {
+        setScanStatus('searching');
+        setStatusMessage('Menyesuaikan posisi wajah di dalam oval...');
+      }
+    } catch {
+      setScanStatus('unrecognized');
+      setStatusMessage('Koneksi tertunda, scanning ulang otomatis...');
+    } finally {
+      isExecutingRef.current = false;
+    }
+
+    // CONTINUOUS RECURSION (Scan ulang terus-menerus tanpa henti!)
+    if (isLoopActiveRef.current) {
+      loopTimeoutRef.current = setTimeout(() => {
+        if (isLoopActiveRef.current) {
+          scanLoopWorkerRef.current();
+        }
+      }, 450);
+    }
+  }, [captureFrame, onClose, onSuccess]);
+
+  // Keep worker ref synced
+  useEffect(() => {
+    scanLoopWorkerRef.current = runScanCycle;
+  }, [runScanCycle]);
+
   // Start Camera Stream
   const startCamera = useCallback(async () => {
     stopCamera();
     setCameraError(null);
     setScanStatus('idle');
-    setStatusMessage('Starting camera feed...');
+    setStatusMessage('Memulai koneksi kamera...');
     setProgress(20);
+    isLoopActiveRef.current = true;
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Camera access is not supported by your browser.');
+        throw new Error('Akses kamera tidak didukung di browser ini.');
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -81,125 +190,40 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
           videoRef.current?.play().catch(e => console.warn('Autoplay prevented:', e));
-          setStatusMessage('Align your face inside the oval frame...');
+          setStatusMessage('Arahkan wajah ke dalam lingkaran oval...');
           setProgress(40);
           setScanStatus('searching');
+          
+          // Langsung jalankan continuous scan loop otomatis
+          if (isLoopActiveRef.current) {
+            setTimeout(() => {
+              scanLoopWorkerRef.current();
+            }, 300);
+          }
         };
       }
-    } catch (err: any) {
-      console.error('Camera access error:', err);
-      setCameraError(err.message || 'Unable to access camera. Please check camera permissions.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Gagal membuka kamera.';
+      setCameraError(msg);
       setScanStatus('error');
-      setStatusMessage('Camera access failed.');
+      setStatusMessage('Gagal membuka kamera.');
+      isLoopActiveRef.current = false;
     }
   }, [facingMode, stopCamera]);
 
-  // Capture current frame from video as Base64 JPEG
-  const captureFrame = useCallback((): string | null => {
-    if (!videoRef.current || !canvasRef.current) return null;
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-
-    if (video.videoWidth === 0 || video.videoHeight === 0) return null;
-
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', 0.85);
-  }, []);
-
-  // Perform single scan verification
-  const executeScan = useCallback(async () => {
-    const frameData = captureFrame();
-    if (!frameData) {
-      // If frame is not ready yet, retry in next cycle
-      return false;
-    }
-
-    setScanStatus('scanning');
-    setStatusMessage('Verifying biometric facial contours...');
-    setProgress(75);
-
-    try {
-      const res = await fetch(apiUrl('/api/auth/face-login'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: frameData })
-      });
-
-      const data = await res.json();
-
-      if (data.success && data.user) {
-        // SUCCESS: Face matched!
-        setScanStatus('success');
-        setStatusMessage(`Face Verified: ${data.user.username} (${data.user.id})`);
-        setProgress(100);
-        setMatchedUser(data.user);
-
-        // Auto login callback after short celebration animation
-        setTimeout(() => {
-          onSuccess(data.user);
-          onClose();
-        }, 1200);
-
-        return true;
-      } else {
-        // NOT RECOGNIZED: Update status, but CONTINUOUS LOOP will keep searching!
-        setScanStatus('unrecognized');
-        setStatusMessage('Face not recognized. Please position your face inside...');
-        setProgress(100);
-        setScanCount(prev => prev + 1);
-        return false;
-      }
-    } catch (e: any) {
-      console.error('Face recognition network error:', e);
-      setScanStatus('unrecognized');
-      setStatusMessage('Scanning network delay, retrying automatically...');
-      setProgress(100);
-      return false;
-    }
-  }, [captureFrame, onClose, onSuccess]);
-
-  // CONTINUOUS AUTO-SCAN LOOP:
-  // Automatically runs over and over until a face is found or user closes the modal
+  // Modal open / close lifecycle
   useEffect(() => {
-    if (!isOpen || !isAutoScanActive || scanStatus === 'success' || scanStatus === 'error' || cameraError) {
-      return;
-    }
-
-    // Wait until video is playing
-    if (scanStatus === 'idle') return;
-
-    const delay = scanStatus === 'unrecognized' ? 650 : 800;
-
-    scanTimerRef.current = setTimeout(async () => {
-      if (isOpen && isAutoScanActive) {
-        await executeScan();
-      }
-    }, delay);
-
-    return () => {
-      if (scanTimerRef.current) {
-        clearTimeout(scanTimerRef.current);
-      }
-    };
-  }, [isOpen, isAutoScanActive, scanStatus, cameraError, executeScan, scanCount]);
-
-  // Modal open/close lifecycle
-  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
     if (isOpen) {
-      setIsAutoScanActive(true);
-      setScanCount(0);
-      setMatchedUser(null);
-      startCamera();
+      timer = setTimeout(() => {
+        startCamera();
+      }, 0);
     } else {
       stopCamera();
     }
 
     return () => {
+      if (timer) clearTimeout(timer);
       stopCamera();
     };
   }, [isOpen, startCamera, stopCamera]);
@@ -210,11 +234,12 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
     setFacingMode(prev => (prev === 'user' ? 'environment' : 'user'));
   };
 
-  const handleManualRetry = () => {
-    setScanStatus('searching');
-    setStatusMessage('Scanning face now...');
-    setProgress(50);
-    executeScan();
+  const handleManualTrigger = () => {
+    if (loopTimeoutRef.current) {
+      clearTimeout(loopTimeoutRef.current);
+    }
+    isLoopActiveRef.current = true;
+    scanLoopWorkerRef.current();
   };
 
   return (
@@ -253,7 +278,7 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
           <div className="flex items-center gap-1.5">
             <button
               onClick={toggleFacingMode}
-              title="Switch Camera"
+              title="Ganti Kamera"
               className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700/50"
             >
               <SwitchCamera className="w-4 h-4" />
@@ -261,7 +286,7 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
 
             <button
               onClick={onClose}
-              title="Close"
+              title="Tutup"
               className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors border border-slate-700/50"
             >
               <X className="w-4 h-4" />
@@ -281,7 +306,7 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
                 className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 transition-all inline-flex items-center gap-1.5"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                Try Again
+                Coba Lagi
               </button>
             </div>
           ) : (
@@ -309,36 +334,36 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
 
               {/* Center Oval Face Guide Frame */}
               <div 
-                className={`absolute w-[68%] h-[82%] rounded-[50%] border-2 pointer-events-none transition-all duration-500 flex items-center justify-center ${
+                className={`absolute w-[68%] h-[82%] rounded-[50%] border-2 pointer-events-none transition-all duration-300 flex items-center justify-center ${
                   scanStatus === 'success'
-                    ? 'border-emerald-500 shadow-[0_0_30px_rgba(16,185,129,0.8)] scale-105'
+                    ? 'border-emerald-500 shadow-[0_0_35px_rgba(16,185,129,0.85)] scale-105'
                     : scanStatus === 'scanning'
-                    ? 'border-orange-500 shadow-[0_0_25px_rgba(255,107,0,0.6)] animate-pulse'
+                    ? 'border-orange-500 shadow-[0_0_25px_rgba(255,107,0,0.65)] animate-pulse'
                     : 'border-rose-500/80 shadow-[0_0_20px_rgba(244,63,94,0.5)]'
                 }`}
               >
-                {/* Horizontal Laser Scanning Line (Sweeps up/down during search) */}
+                {/* Horizontal Laser Scanning Line (Sweeps up/down continuously during search) */}
                 {scanStatus !== 'success' && !cameraError && (
-                  <div className="absolute inset-x-4 h-[2px] bg-gradient-to-r from-transparent via-orange-400 to-transparent animate-pulse opacity-80" />
+                  <div className="absolute inset-x-4 h-[2px] bg-gradient-to-r from-transparent via-orange-400 to-transparent animate-pulse opacity-85" />
                 )}
               </div>
 
               {/* Center Status Icon Overlay Badge */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 {scanStatus === 'unrecognized' && (
-                  <div className="w-16 h-16 rounded-full bg-rose-600/75 backdrop-blur-md border border-rose-400/80 flex items-center justify-center shadow-[0_0_30px_rgba(225,29,72,0.7)] animate-in zoom-in-75 duration-200">
+                  <div className="w-16 h-16 rounded-full bg-rose-600/75 backdrop-blur-md border border-rose-400/80 flex items-center justify-center shadow-[0_0_30px_rgba(225,29,72,0.7)] animate-in zoom-in-75 duration-150">
                     <AlertCircle className="w-8 h-8 text-white stroke-[2.5]" />
                   </div>
                 )}
 
                 {scanStatus === 'scanning' && (
-                  <div className="w-16 h-16 rounded-full bg-orange-600/75 backdrop-blur-md border border-orange-400/80 flex items-center justify-center shadow-[0_0_30px_rgba(255,107,0,0.7)] animate-spin duration-1000">
+                  <div className="w-16 h-16 rounded-full bg-orange-600/75 backdrop-blur-md border border-orange-400/80 flex items-center justify-center shadow-[0_0_30px_rgba(255,107,0,0.7)] animate-spin duration-700">
                     <Sparkles className="w-8 h-8 text-white" />
                   </div>
                 )}
 
                 {scanStatus === 'success' && (
-                  <div className="w-20 h-20 rounded-full bg-emerald-600/85 backdrop-blur-md border-2 border-emerald-300 flex items-center justify-center shadow-[0_0_40px_rgba(16,185,129,0.9)] animate-in zoom-in-90 duration-300">
+                  <div className="w-20 h-20 rounded-full bg-emerald-600/90 backdrop-blur-md border-2 border-emerald-300 flex items-center justify-center shadow-[0_0_40px_rgba(16,185,129,0.95)] animate-in zoom-in-90 duration-300">
                     <CheckCircle2 className="w-10 h-10 text-white stroke-[2.5]" />
                   </div>
                 )}
@@ -381,7 +406,7 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
           {/* Progress Bar Track */}
           <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all duration-300 ${
+              className={`h-full rounded-full transition-all duration-200 ${
                 scanStatus === 'success'
                   ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
                   : scanStatus === 'scanning'
@@ -392,12 +417,11 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
             />
           </div>
 
-          {/* Continuous Searching Micro-text */}
-          {scanStatus === 'unrecognized' && (
-            <p className="text-[11px] text-slate-400 text-center font-medium animate-pulse pt-0.5">
-              🔄 Auto continuous scan active (searching until face matches...)
-            </p>
-          )}
+          {/* Continuous Scanning Active Indicator Badge */}
+          <div className="flex items-center justify-center gap-1.5 text-[11px] text-orange-400 font-bold pt-1">
+            <Activity className="w-3.5 h-3.5 animate-pulse text-orange-400" />
+            <span>Auto Continuous Scan Aktif (Mencari terus menerus sampai ketemu)</span>
+          </div>
         </div>
 
         {/* Action Buttons Section */}
@@ -406,7 +430,7 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
           {/* Main Primary Action Button */}
           <button
             type="button"
-            onClick={handleManualRetry}
+            onClick={handleManualTrigger}
             disabled={scanStatus === 'success' || !!cameraError}
             className="w-full py-3 rounded-2xl text-xs sm:text-sm font-extrabold btn-orange text-white shadow-xl hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:pointer-events-none"
           >
@@ -420,7 +444,7 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
             
             <button
               type="button"
-              onClick={handleManualRetry}
+              onClick={handleManualTrigger}
               disabled={scanStatus === 'success' || !!cameraError}
               className="flex-1 py-2.5 px-4 rounded-xl text-xs font-bold bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700/80 flex items-center justify-center gap-2 transition-all"
             >
