@@ -183,7 +183,7 @@ export default function Home() {
       const res = await fetch(apiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: loginId.trim(), password: loginPassword })
+        body: JSON.stringify({ user_id: loginId.trim(), id: loginId.trim(), password: loginPassword.trim() })
       });
       const data = await res.json();
       if (data.success && data.user) {

@@ -4,26 +4,30 @@ import '@/lib/seed';
 
 export async function POST(request: Request) {
   try {
-    const { user_id, password } = await request.json();
+    const body = await request.json();
+    const rawId = body.user_id || body.id || body.username || body.userId;
+    const password = body.password ? String(body.password).trim() : '';
 
-    if (!user_id || !password) {
+    if (!rawId || !password) {
       return NextResponse.json({ error: 'User ID and Password are required' }, { status: 400 });
     }
 
-    const cleanId = String(user_id).trim();
+    const cleanId = String(rawId).trim();
 
-    // Case insensitive ID lookup
-    const stmt = db.prepare('SELECT * FROM users WHERE LOWER(id) = LOWER(?)');
-    const user = stmt.get(cleanId) as any;
+    // Case insensitive ID or username lookup
+    const stmt = db.prepare('SELECT * FROM users WHERE LOWER(id) = LOWER(?) OR LOWER(username) = LOWER(?)');
+    const user = stmt.get(cleanId, cleanId) as any;
 
     const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
 
     if (!user || user.password !== password) {
       // Log failed login
-      db.prepare(`
-        INSERT INTO audit_log (timestamp, user_id, username, action, description, status)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(timestamp, cleanId, user ? user.username : 'Unknown', 'Login', 'Failed login attempt: Invalid credentials.', 'Failed');
+      try {
+        db.prepare(`
+          INSERT INTO audit_log (timestamp, user_id, username, action, description, status)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(timestamp, cleanId, user ? user.username : 'Unknown', 'Login', 'Failed login attempt: Invalid credentials.', 'Failed');
+      } catch (e) {}
 
       return NextResponse.json({ error: 'Invalid User ID or Password' }, { status: 401 });
     }
