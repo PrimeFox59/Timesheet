@@ -369,15 +369,11 @@ export default function Home() {
                   </div>
                   
                   <div className="pt-1">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/90 text-white text-[11px] font-bold tracking-wide shadow-md border border-slate-700/80 backdrop-blur-md">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B00] animate-pulse" />
+                    <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-slate-900/95 text-white text-xs font-bold tracking-wide shadow-md border border-slate-700/80 backdrop-blur-md">
+                      <span className="w-2 h-2 rounded-full bg-[#FF6B00] animate-pulse" />
                       <span>Commissioning Management System</span>
                     </span>
                   </div>
-                  
-                  <p className="text-[11px] text-slate-500 font-medium pt-0.5">
-                    Site Timesheet &amp; Operations Platform
-                  </p>
                 </div>
               </div>
 
