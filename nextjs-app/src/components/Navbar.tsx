@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { LogOut, User, Shield, Clock, Compass } from 'lucide-react';
+import { LogOut, User, Shield, Clock, Compass, AlertTriangle } from 'lucide-react';
 
 interface NavbarProps {
   user: any;
@@ -11,6 +11,18 @@ interface NavbarProps {
 }
 
 export default function Navbar({ user, onLogout, onOpenProfileSettings, onOpenAppTour }: NavbarProps) {
+  // Incomplete profile check (Email, Phone, Face ID)
+  const isMissingEmail = !user?.email || String(user.email).trim() === '';
+  const isMissingPhone = !user?.phone || String(user.phone).trim() === '';
+  const isMissingFace = !(user?.face_descriptor && user.face_descriptor !== '' && user.face_descriptor !== '[]');
+  const hasIncompleteProfile = Boolean(user && (isMissingEmail || isMissingPhone || isMissingFace));
+  const missingCount = (isMissingEmail ? 1 : 0) + (isMissingPhone ? 1 : 0) + (isMissingFace ? 1 : 0);
+
+  const missingLabels: string[] = [];
+  if (isMissingEmail) missingLabels.push('Email');
+  if (isMissingPhone) missingLabels.push('Phone');
+  if (isMissingFace) missingLabels.push('Face ID');
+
   return (
     <header className="sticky top-0 z-50 glass-nav">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -46,24 +58,53 @@ export default function Navbar({ user, onLogout, onOpenProfileSettings, onOpenAp
         {/* User Info & Actions */}
         {user && (
           <div className="flex items-center gap-3 sm:gap-4">
-            {/* Profile Avatar Button */}
+            {/* Profile Avatar Button with Incomplete Profile Callout */}
             <button
               id="tour-navbar-profile"
               onClick={onOpenProfileSettings}
-              className="flex items-center gap-3 px-3 py-1.5 rounded-full bg-white/80 hover:bg-white border border-white/90 shadow-xs hover:shadow-md backdrop-blur-md transition-all active:scale-95 cursor-pointer text-left group"
-              title="Click to open Profile Settings"
+              className={`relative flex items-center gap-2.5 sm:gap-3 px-3 py-1.5 rounded-full shadow-xs hover:shadow-md backdrop-blur-md transition-all active:scale-95 cursor-pointer text-left group ${
+                hasIncompleteProfile
+                  ? 'bg-amber-50/90 hover:bg-amber-100/90 border border-amber-300 ring-2 ring-amber-400/20'
+                  : 'bg-white/80 hover:bg-white border border-white/90'
+              }`}
+              title={
+                hasIncompleteProfile
+                  ? `Action Required: Please complete your profile (${missingLabels.join(', ')})`
+                  : 'Click to open Profile Settings'
+              }
             >
-              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-400 to-[#FF6B00] text-white flex items-center justify-center font-black text-xs border border-white overflow-hidden shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
-                {user.avatar ? (
-                  <img src={user.avatar} alt="Profile" className="w-full h-full object-cover" />
-                ) : (
-                  <span>{user.username ? user.username.charAt(0).toUpperCase() : 'U'}</span>
+              {/* Avatar with Alert Notification Dot if Incomplete */}
+              <div className="relative">
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-400 to-[#FF6B00] text-white flex items-center justify-center font-black text-xs border border-white overflow-hidden shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
+                  {user.avatar ? (
+                    <img src={user.avatar} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <span>{user.username ? user.username.charAt(0).toUpperCase() : 'U'}</span>
+                  )}
+                </div>
+
+                {hasIncompleteProfile && (
+                  <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-80"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500 text-[8px] font-black text-white items-center justify-center shadow-xs">
+                      !
+                    </span>
+                  </span>
                 )}
               </div>
+
               <div className="hidden sm:flex flex-col text-left">
-                <span className="text-xs font-bold text-slate-900 leading-tight group-hover:text-[#FF6B00] transition-colors">
-                  {user.username}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-slate-900 leading-tight group-hover:text-[#FF6B00] transition-colors">
+                    {user.username}
+                  </span>
+                  {hasIncompleteProfile && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-amber-200/90 text-amber-900 border border-amber-300 text-[9px] font-black uppercase tracking-tight flex items-center gap-0.5">
+                      <AlertTriangle className="w-2.5 h-2.5 text-amber-700" />
+                      <span>{missingCount} to fill</span>
+                    </span>
+                  )}
+                </div>
                 <span className="text-[10px] text-orange-600 font-medium flex items-center gap-1">
                   <Shield className="w-2.5 h-2.5" />
                   {user.role}

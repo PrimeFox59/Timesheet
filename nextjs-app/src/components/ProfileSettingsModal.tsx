@@ -16,7 +16,8 @@ import {
   Trash2, 
   ScanFace,
   Sparkles,
-  RefreshCw
+  RefreshCw,
+  AlertTriangle
 } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 import { useToast } from '@/components/Toast';
@@ -61,6 +62,17 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
   const [email, setEmail] = useState(user?.email || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [avatar, setAvatar] = useState(user?.avatar || '');
+
+  // Missing fields evaluation
+  const isMissingEmail = !email || email.trim() === '';
+  const isMissingPhone = !phone || phone.trim() === '';
+  const isMissingFace = !hasRegisteredFace;
+  const hasIncompleteProfile = isMissingEmail || isMissingPhone || isMissingFace;
+
+  const missingItems: string[] = [];
+  if (isMissingEmail) missingItems.push('Email');
+  if (isMissingPhone) missingItems.push('Phone / WhatsApp');
+  if (isMissingFace) missingItems.push('AI Face ID');
 
   // Password Form State
   const [oldPassword, setOldPassword] = useState('');
@@ -244,6 +256,9 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
           >
             <User className="w-3.5 h-3.5" />
             <span>Profile Info</span>
+            {(isMissingEmail || isMissingPhone) && (
+              <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" title="Email or Phone not filled" />
+            )}
           </button>
           <button
             type="button"
@@ -269,12 +284,34 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
             <ScanFace className="w-3.5 h-3.5 text-[#FF6B00]" />
             <span>AI Face ID</span>
             {hasRegisteredFace ? (
-              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Active" />
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Active & Enrolled" />
             ) : (
-              <span className="text-[9px] px-1 py-0.2 rounded bg-orange-100 text-[#FF6B00] font-mono shrink-0">New</span>
+              <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 font-bold font-mono shrink-0">Unenrolled</span>
             )}
           </button>
         </div>
+
+        {/* Incomplete Profile Callout Warning Banner */}
+        {hasIncompleteProfile && (
+          <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-400/40 text-amber-950 text-xs flex items-start gap-3 animate-in fade-in">
+            <div className="p-1.5 rounded-xl bg-amber-500 text-white shrink-0 mt-0.5 shadow-xs">
+              <AlertTriangle className="w-4 h-4" />
+            </div>
+            <div className="space-y-1 flex-1">
+              <div className="flex items-center justify-between">
+                <h4 className="font-bold text-amber-950 flex items-center gap-1.5">
+                  <span>Action Required: Incomplete Profile</span>
+                </h4>
+                <span className="px-1.5 py-0.2 rounded-md bg-amber-200 text-amber-900 text-[10px] font-black uppercase">
+                  {missingItems.length} Missing
+                </span>
+              </div>
+              <p className="text-amber-800 text-[11px] leading-relaxed">
+                Please complete your <strong>{missingItems.join(', ')}</strong> to ensure seamless multi-factor security and enable AI Face ID biometric login.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Alert Messages */}
         {error && (
@@ -380,8 +417,14 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Email
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Email</span>
+                  {isMissingEmail && (
+                    <span className="text-[10px] text-amber-600 font-bold flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3 text-amber-500" />
+                      <span>Not set (Recommended)</span>
+                    </span>
+                  )}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -392,14 +435,22 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
                     value={email}
                     onChange={e => setEmail(e.target.value)}
                     placeholder="email@company.com"
-                    className="w-full pl-9 pr-3.5 py-2 rounded-xl text-xs glass-input font-medium text-slate-900"
+                    className={`w-full pl-9 pr-3.5 py-2 rounded-xl text-xs glass-input font-medium text-slate-900 ${
+                      isMissingEmail ? 'border-amber-300 bg-amber-50/20 focus:border-amber-500' : ''
+                    }`}
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Phone / WhatsApp
+                <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center justify-between">
+                  <span>Phone / WhatsApp</span>
+                  {isMissingPhone && (
+                    <span className="text-[10px] text-amber-600 font-bold flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3 text-amber-500" />
+                      <span>Not set (Recommended)</span>
+                    </span>
+                  )}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -410,7 +461,9 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
                     value={phone}
                     onChange={e => setPhone(e.target.value)}
                     placeholder="+62 812 3456 789"
-                    className="w-full pl-9 pr-3.5 py-2 rounded-xl text-xs glass-input font-medium text-slate-900"
+                    className={`w-full pl-9 pr-3.5 py-2 rounded-xl text-xs glass-input font-medium text-slate-900 ${
+                      isMissingPhone ? 'border-amber-300 bg-amber-50/20 focus:border-amber-500' : ''
+                    }`}
                   />
                 </div>
               </div>
