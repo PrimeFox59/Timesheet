@@ -10,6 +10,7 @@ interface DatabaseManagementTabProps {
 }
 
 export default function DatabaseManagementTab({ currentUser, onRefreshAll }: DatabaseManagementTabProps) {
+  const isSuperuser = currentUser?.id?.toLowerCase() === 'prime' || currentUser?.role?.toLowerCase() === 'superuser';
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [migrating, setMigrating] = useState(false);
   const [migrationResult, setMigrationResult] = useState<{
@@ -254,27 +255,29 @@ export default function DatabaseManagementTab({ currentUser, onRefreshAll }: Dat
         {/* Database Health, Backup Export & Factory Reset Cards */}
         <div className="space-y-6">
           
-          {/* Backup Export */}
-          <div className="glass-card rounded-3xl p-6 border border-white/80 shadow-md space-y-4">
-            <div className="flex items-center gap-2 border-b border-slate-200/80 pb-3">
-              <Server className="w-5 h-5 text-blue-600" />
-              <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider">
-                Database Backup
-              </h3>
+          {/* Backup Export (Superuser Only) */}
+          {isSuperuser && (
+            <div className="glass-card rounded-3xl p-6 border border-white/80 shadow-md space-y-4">
+              <div className="flex items-center gap-2 border-b border-slate-200/80 pb-3">
+                <Server className="w-5 h-5 text-blue-600" />
+                <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider">
+                  Database Backup
+                </h3>
+              </div>
+
+              <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                Export full SQLite database to a structured Excel spreadsheet file containing all user accounts, timesheets, work areas, and audit logs.
+              </p>
+
+              <button
+                onClick={handleDownloadBackup}
+                className="w-full py-3 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-lg flex items-center justify-center gap-2 transition cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                <span>Export Database (.xlsx)</span>
+              </button>
             </div>
-
-            <p className="text-xs text-slate-500 leading-relaxed font-medium">
-              Export full SQLite database to a structured Excel spreadsheet file containing all user accounts, timesheets, work areas, and audit logs.
-            </p>
-
-            <button
-              onClick={handleDownloadBackup}
-              className="w-full py-3 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-lg flex items-center justify-center gap-2 transition"
-            >
-              <Download className="w-4 h-4" />
-              <span>Export Database (.xlsx)</span>
-            </button>
-          </div>
+          )}
 
           {/* Reset Database to Factory State */}
           <div className="glass-card rounded-3xl p-6 border border-rose-200/80 bg-rose-50/30 shadow-md space-y-4">

@@ -16,6 +16,7 @@ interface CodexTabProps {
 type SortField = 'user_id' | 'username' | 'role' | 'total_entries' | 'total_hours' | 'total_overtime' | 'approval_status';
 
 export default function CodexTab({ currentUser, usersList }: CodexTabProps) {
+  const isSuperuser = currentUser?.id?.toLowerCase() === 'prime' || currentUser?.role?.toLowerCase() === 'superuser';
   const currentMonthStr = new Date().toISOString().substring(0, 7); // YYYY-MM
   const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
 
@@ -690,14 +691,16 @@ export default function CodexTab({ currentUser, usersList }: CodexTabProps) {
                             <Eye className="w-4 h-4 text-slate-600" />
                           </button>
 
-                          {/* Export Excel Icon Button */}
-                          <button
-                            onClick={() => handleExportUserExcel(item.user_id)}
-                            className="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition-all duration-150 active:scale-95 border border-emerald-200/80 shadow-2xs"
-                            title="Export Metso Excel Timesheet Template"
-                          >
-                            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
-                          </button>
+                          {/* Export Excel Icon Button (Superuser Only) */}
+                          {isSuperuser && (
+                            <button
+                              onClick={() => handleExportUserExcel(item.user_id)}
+                              className="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition-all duration-150 active:scale-95 border border-emerald-200/80 shadow-2xs"
+                              title="Export Metso Excel Timesheet Template"
+                            >
+                              <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                            </button>
+                          )}
 
                           {/* Sign & Approve Icon Button */}
                           <button
@@ -968,14 +971,18 @@ export default function CodexTab({ currentUser, usersList }: CodexTabProps) {
             </div>
 
             <div className="pt-3 border-t border-slate-200 flex items-center justify-between text-xs">
-              <button
-                type="button"
-                onClick={() => handleExportUserExcel(inspectUser.user_id)}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition flex items-center gap-1.5"
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                <span>Export Metso Excel</span>
-              </button>
+              {isSuperuser ? (
+                <button
+                  type="button"
+                  onClick={() => handleExportUserExcel(inspectUser.user_id)}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition flex items-center gap-1.5"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>Export Metso Excel</span>
+                </button>
+              ) : (
+                <div />
+              )}
 
               <button
                 type="button"
