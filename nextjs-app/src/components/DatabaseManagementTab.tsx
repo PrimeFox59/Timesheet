@@ -293,12 +293,23 @@ export default function DatabaseManagementTab({ currentUser, onRefreshAll }: Dat
               </code>
             </p>
 
+            {resetResult && (
+              <div className={`p-3.5 rounded-xl text-xs font-semibold flex items-center gap-2.5 ${resetResult.success ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'}`}>
+                {resetResult.success ? <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
+                <p>{resetResult.message}</p>
+              </div>
+            )}
+
             <button
-              onClick={() => setIsResetModalOpen(true)}
-              className="w-full py-3 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-lg flex items-center justify-center gap-2 transition"
+              onClick={() => {
+                setResetResult(null);
+                setIsResetModalOpen(true);
+              }}
+              disabled={resetting}
+              className="w-full py-3 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-lg flex items-center justify-center gap-2 transition active:scale-[0.99]"
             >
               <RotateCcw className="w-4 h-4" />
-              <span>Reset Database to Factory State</span>
+              <span>{resetting ? 'Resetting Database...' : 'Reset Database to Factory State'}</span>
             </button>
           </div>
 
@@ -346,11 +357,19 @@ export default function DatabaseManagementTab({ currentUser, onRefreshAll }: Dat
               </p>
             </div>
 
+            {resetResult && !resetResult.success && (
+              <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold text-left flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{resetResult.message}</span>
+              </div>
+            )}
+
             <div className="flex items-center justify-center gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setIsResetModalOpen(false)}
-                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition"
+                disabled={resetting}
+                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -358,9 +377,10 @@ export default function DatabaseManagementTab({ currentUser, onRefreshAll }: Dat
                 type="button"
                 onClick={handleConfirmResetDatabase}
                 disabled={resetting}
-                className="px-5 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold shadow hover:bg-rose-700 transition"
+                className="px-5 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold shadow hover:bg-rose-700 transition flex items-center gap-2 disabled:opacity-60"
               >
-                {resetting ? 'Resetting Database...' : 'Yes, Reset Database Now'}
+                {resetting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                <span>{resetting ? 'Resetting Database...' : 'Yes, Reset Database Now'}</span>
               </button>
             </div>
           </div>

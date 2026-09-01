@@ -33,6 +33,21 @@ try {
           get: (...params: any[]) => stmt.get(...params),
           run: (...params: any[]) => stmt.run(...params)
         };
+      },
+      transaction: (fn: (...args: any[]) => any) => {
+        return (...args: any[]) => {
+          rawDb.exec('BEGIN TRANSACTION;');
+          try {
+            const res = fn(...args);
+            rawDb.exec('COMMIT;');
+            return res;
+          } catch (txErr) {
+            try {
+              rawDb.exec('ROLLBACK;');
+            } catch (rbErr) {}
+            throw txErr;
+          }
+        };
       }
     };
     db.pragma('journal_mode = WAL');
