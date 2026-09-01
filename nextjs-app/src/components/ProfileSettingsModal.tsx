@@ -19,6 +19,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
+import { useToast } from '@/components/Toast';
 import FaceIdLoginModal, { UserSessionData } from './FaceIdLoginModal';
 
 export interface UserProfileData {
@@ -44,6 +45,7 @@ interface ProfileSettingsModalProps {
 }
 
 export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: ProfileSettingsModalProps) {
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'face_id'>('profile');
   const [showFaceRegisterModal, setShowFaceRegisterModal] = useState(false);
 
@@ -87,12 +89,12 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
       const data = await res.json();
       if (data.success && data.user) {
         onUpdateUser(data.user);
-        setSuccessMsg('Data Face ID berhasil dihapus.');
+        toast.success('Data biometrik Face ID berhasil dihapus.', 'Face ID Dihapus');
       } else {
-        setError(data.message || 'Gagal menghapus Face ID');
+        toast.error(data.message || 'Gagal menghapus Face ID', 'Gagal');
       }
     } catch (err: any) {
-      setError('Error saat menghapus data Face ID: ' + err.message);
+      toast.error('Error saat menghapus data Face ID: ' + err.message, 'Error');
     } finally {
       setLoading(false);
     }
@@ -143,11 +145,10 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
       }
 
       onUpdateUser(data.user);
-      setSuccessMsg('Profile updated successfully!');
-      setTimeout(() => setSuccessMsg(null), 3000);
+      toast.success('Profil Anda berhasil diperbarui!', 'Profil Disimpan');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error updating profile';
-      setError(msg);
+      toast.error(msg, 'Gagal Menyimpan Profil');
     } finally {
       setLoading(false);
     }
@@ -156,21 +157,19 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
   // Handle Change Password
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setSuccessMsg(null);
 
     if (!oldPassword || !newPassword) {
-      setError('Please fill in both current and new password');
+      toast.warning('Harap isi password lama dan password baru.', 'Form Belum Lengkap');
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setError('New password and confirm password do not match');
+      toast.error('Password baru dan konfirmasi password tidak cocok.', 'Password Tidak Cocok');
       return;
     }
 
     if (newPassword.length < 3) {
-      setError('New password must be at least 3 characters long');
+      toast.warning('Password baru minimal harus 3 karakter.', 'Password Terlalu Pendek');
       return;
     }
 
@@ -190,7 +189,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
 
       const data = await res.json();
       if (!res.ok || data.error) {
-        throw new Error(data.error || 'Failed to change password');
+        throw new Error(data.error || 'Gagal memperbarui password');
       }
 
       if (data.user) {
@@ -200,11 +199,10 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      setSuccessMsg('Password changed successfully!');
-      setTimeout(() => setSuccessMsg(null), 3000);
+      toast.success('Password akun Anda berhasil diperbarui!', 'Password Diperbarui');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error changing password';
-      setError(msg);
+      toast.error(msg, 'Gagal Ubah Password');
     } finally {
       setLoading(false);
     }
@@ -641,7 +639,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
           onSuccess={(res: UserSessionData | any) => {
             setShowFaceRegisterModal(false);
             if (res) {
-              setSuccessMsg('✅ AI Face ID berhasil dipindai & didaftarkan!');
+              toast.success('AI Face ID biometrik berhasil dipindai & disimpan!', 'Face ID Terdaftar');
               onUpdateUser({
                 ...user,
                 ...res,
