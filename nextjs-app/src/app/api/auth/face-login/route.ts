@@ -24,7 +24,7 @@ export async function POST(request: Request) {
         return NextResponse.json({
           success: false,
           disabled: true,
-          message: 'Fitur AI Face ID Login dinonaktifkan oleh Administrator.'
+          message: 'AI Face ID Login feature is currently disabled by Administrator.'
         }, { status: 403 });
       }
     } catch (e) {}
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       if (!user) {
         return NextResponse.json({
           success: false,
-          message: 'Pengguna tidak ditemukan dalam database.'
+          message: 'User profile not found in database.'
         }, { status: 404 });
       }
 
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
           if (dist > 0.60) {
             return NextResponse.json({
               success: false,
-              message: 'Verifikasi biometrik tidak cocok dengan pemilik akun.'
+              message: 'Biometric verification does not match account owner.'
             }, { status: 401 });
           }
           matchScore = Math.round((1 - dist) * 100);
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       const { password, ...safeUser } = user;
       return NextResponse.json({
         success: true,
-        message: `Selamat datang kembali, ${user.username}! Verifikasi wajah berhasil.`,
+        message: `Welcome back, ${user.username}! Face verification successful.`,
         confidence: matchScore,
         user: {
           ...safeUser,
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
       if (users.length === 0) {
         return NextResponse.json({
           success: false,
-          message: 'Belum ada akun yang mendaftarkan Face ID. Silakan login menggunakan password dan daftarkan wajah di menu Profil.'
+          message: 'No registered Face ID profiles found in database. Please log in with password and enroll your face in Profile settings.'
         }, { status: 404 });
       }
 
@@ -113,12 +113,12 @@ export async function POST(request: Request) {
       if (!bestMatch) {
         db.prepare(`
           INSERT INTO audit_log (timestamp, user_id, username, action, description, status)
-          VALUES (?, 'UNRECOGNIZED', 'Face Scanner', 'FACE_LOGIN', 'Verifikasi wajah gagal: Tidak cocok dengan data biometrik terdaftar.', 'Failed')
+          VALUES (?, 'UNRECOGNIZED', 'Face Scanner', 'FACE_LOGIN', 'Face recognition failed: No matching biometric data.', 'Failed')
         `).run(timestamp);
 
         return NextResponse.json({
           success: false,
-          message: 'Wajah tidak cocok dengan akun terdaftar manapun. Pastikan pencahayaan cukup dan wajah menghadap lurus ke kamera.'
+          message: 'Face did not match any registered employee account. Please ensure adequate lighting and face directly to camera.'
         }, { status: 401 });
       }
 
@@ -132,7 +132,7 @@ export async function POST(request: Request) {
       const { password, ...safeUser } = bestMatch;
       return NextResponse.json({
         success: true,
-        message: `Selamat datang, ${bestMatch.username}! Login Face ID berhasil.`,
+        message: `Welcome back, ${bestMatch.username}! Face ID login successful.`,
         confidence: matchPercent,
         user: {
           ...safeUser,
@@ -148,14 +148,14 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: false,
-      message: 'Parameter autentikasi biometrik tidak lengkap.'
+      message: 'Incomplete biometric authentication parameters.'
     }, { status: 400 });
 
   } catch (error: any) {
     console.error('Face ID Login API Error:', error);
     return NextResponse.json({ 
       success: false, 
-      error: error.message || 'Server error saat memproses login wajah' 
+      error: error.message || 'Server error processing face login' 
     }, { status: 500 });
   }
 }

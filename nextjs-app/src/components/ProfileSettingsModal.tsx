@@ -74,7 +74,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
 
   // Handle Delete Face ID
   const handleDeleteFaceId = async () => {
-    if (!confirm('Apakah Anda yakin ingin menghapus data biometrik Face ID Anda?')) return;
+    if (!confirm('Are you sure you want to delete your registered Face ID biometric data?')) return;
     setLoading(true);
     setError(null);
     setSuccessMsg(null);
@@ -89,12 +89,12 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
       const data = await res.json();
       if (data.success && data.user) {
         onUpdateUser(data.user);
-        toast.success('Data biometrik Face ID berhasil dihapus.', 'Face ID Dihapus');
+        toast.success('Face ID biometric data removed successfully.', 'Face ID Removed');
       } else {
-        toast.error(data.message || 'Gagal menghapus Face ID', 'Gagal');
+        toast.error(data.message || 'Failed to remove Face ID', 'Error');
       }
     } catch (err: any) {
-      toast.error('Error saat menghapus data Face ID: ' + err.message, 'Error');
+      toast.error('Error removing Face ID data: ' + err.message, 'Error');
     } finally {
       setLoading(false);
     }
@@ -145,10 +145,10 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
       }
 
       onUpdateUser(data.user);
-      toast.success('Profil Anda berhasil diperbarui!', 'Profil Disimpan');
+      toast.success('Your profile has been updated successfully!', 'Profile Saved');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error updating profile';
-      toast.error(msg, 'Gagal Menyimpan Profil');
+      toast.error(msg, 'Failed to Save Profile');
     } finally {
       setLoading(false);
     }
@@ -159,17 +159,17 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
     e.preventDefault();
 
     if (!oldPassword || !newPassword) {
-      toast.warning('Harap isi password lama dan password baru.', 'Form Belum Lengkap');
+      toast.warning('Please provide both your current password and new password.', 'Incomplete Form');
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      toast.error('Password baru dan konfirmasi password tidak cocok.', 'Password Tidak Cocok');
+      toast.error('New password and confirm password do not match.', 'Password Mismatch');
       return;
     }
 
     if (newPassword.length < 3) {
-      toast.warning('Password baru minimal harus 3 karakter.', 'Password Terlalu Pendek');
+      toast.warning('New password must be at least 3 characters.', 'Password Too Short');
       return;
     }
 
@@ -189,7 +189,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
 
       const data = await res.json();
       if (!res.ok || data.error) {
-        throw new Error(data.error || 'Gagal memperbarui password');
+        throw new Error(data.error || 'Failed to update password');
       }
 
       if (data.user) {
@@ -199,10 +199,10 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      toast.success('Password akun Anda berhasil diperbarui!', 'Password Diperbarui');
+      toast.success('Account password updated successfully!', 'Password Updated');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error changing password';
-      toast.error(msg, 'Gagal Ubah Password');
+      toast.error(msg, 'Password Change Failed');
     } finally {
       setLoading(false);
     }
@@ -219,8 +219,8 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
               <User className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-extrabold text-base text-slate-800 tracking-tight">Pengaturan Profil</h3>
-              <p className="text-xs text-slate-500 font-medium">Kelola data diri &amp; keamanan akun Anda</p>
+              <h3 className="font-extrabold text-base text-slate-800 tracking-tight">Profile Settings</h3>
+              <p className="text-xs text-slate-500 font-medium">Manage your personal information &amp; account security</p>
             </div>
           </div>
           <button
@@ -243,7 +243,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
             }`}
           >
             <User className="w-3.5 h-3.5" />
-            <span>Data Diri</span>
+            <span>Profile Info</span>
           </button>
           <button
             type="button"
@@ -267,7 +267,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
             }`}
           >
             <ScanFace className="w-3.5 h-3.5 text-[#FF6B00]" />
-            <span>Face ID AI</span>
+            <span>AI Face ID</span>
             {hasRegisteredFace ? (
               <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Active" />
             ) : (
@@ -290,7 +290,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
           </div>
         )}
 
-        {/* TAB 1: DATA DIRI & PROFILE PICTURE */}
+        {/* TAB 1: PROFILE INFO & PICTURE */}
         {activeTab === 'profile' && (
           <form onSubmit={handleSaveProfile} className="space-y-4">
             
@@ -318,11 +318,11 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
               </div>
 
               <div className="space-y-0.5 flex-1">
-                <h4 className="text-xs font-bold text-slate-800">Foto Profil Avatar</h4>
-                <p className="text-[11px] text-slate-500">Upload foto profil untuk tampilan akun Anda.</p>
+                <h4 className="text-xs font-bold text-slate-800">Avatar Photo</h4>
+                <p className="text-[11px] text-slate-500">Upload a profile picture for your account identity.</p>
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <label className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 text-[11px] font-bold hover:bg-slate-50 cursor-pointer shadow-2xs">
-                    Upload Foto
+                    Upload Photo
                     <input
                       type="file"
                       accept="image/*"
@@ -338,7 +338,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
                       className="px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 text-[11px] font-bold hover:bg-rose-100 transition flex items-center gap-1 cursor-pointer"
                     >
                       <Trash2 className="w-3 h-3" />
-                      Hapus
+                      Remove
                     </button>
                   )}
                 </div>
@@ -363,7 +363,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Nama Lengkap / Username
+                  Full Name / Username
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -391,7 +391,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
                     type="email"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
-                    placeholder="email@perusahaan.com"
+                    placeholder="email@company.com"
                     className="w-full pl-9 pr-3.5 py-2 rounded-xl text-xs glass-input font-medium text-slate-900"
                   />
                 </div>
@@ -399,7 +399,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Nomor HP / WhatsApp
+                  Phone / WhatsApp
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -409,7 +409,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
                     type="tel"
                     value={phone}
                     onChange={e => setPhone(e.target.value)}
-                    placeholder="08123456789"
+                    placeholder="+62 812 3456 789"
                     className="w-full pl-9 pr-3.5 py-2 rounded-xl text-xs glass-input font-medium text-slate-900"
                   />
                 </div>
@@ -423,7 +423,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
                 onClick={onClose}
                 className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition cursor-pointer"
               >
-                Batal
+                Cancel
               </button>
               <button
                 type="submit"
@@ -431,7 +431,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
                 className="px-5 py-2 rounded-xl btn-orange text-white text-xs font-black hover:scale-[1.02] active:scale-[0.98] transition flex items-center gap-1.5 shadow-md cursor-pointer"
               >
                 <Save className="w-3.5 h-3.5" />
-                <span>{loading ? 'Saving...' : 'Simpan Profil'}</span>
+                <span>{loading ? 'Saving...' : 'Save Profile'}</span>
               </button>
             </div>
 
@@ -444,7 +444,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
             
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Password Saat Ini
+                Current Password
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -454,7 +454,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
                   type="password"
                   value={oldPassword}
                   onChange={e => setOldPassword(e.target.value)}
-                  placeholder="Masukkan password lama"
+                  placeholder="Enter current password"
                   className="w-full pl-9 pr-3.5 py-2 rounded-xl text-xs glass-input font-medium text-slate-900"
                   required
                 />
@@ -463,7 +463,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Password Baru
+                New Password
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -473,7 +473,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
                   type="password"
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
-                  placeholder="Minimal 3 karakter"
+                  placeholder="Minimum 3 characters"
                   className="w-full pl-9 pr-3.5 py-2 rounded-xl text-xs glass-input font-medium text-slate-900"
                   required
                 />
@@ -482,13 +482,13 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Konfirmasi Password Baru
+                Confirm New Password
               </label>
               <input
                 type="password"
                 value={confirmPassword}
                 onChange={e => setConfirmPassword(e.target.value)}
-                placeholder="Ulangi password baru"
+                placeholder="Re-enter new password"
                 className="w-full px-3.5 py-2 rounded-xl text-xs glass-input font-medium text-slate-900"
                 required
               />
@@ -500,7 +500,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
                 onClick={onClose}
                 className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition cursor-pointer"
               >
-                Batal
+                Cancel
               </button>
               <button
                 type="submit"
@@ -531,7 +531,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
                       <Sparkles className="w-3 h-3 text-[#FF6B00]" />
                     </h4>
                     <p className="text-[10px] text-slate-400">
-                      Verifikasi biometrik neural network 68 titik landmark via TensorFlow.
+                      Neural network 68-point facial landmark verification via TensorFlow.
                     </p>
                   </div>
                 </div>
@@ -571,7 +571,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
                           : '128-d Biometric Vector Active'}
                       </div>
                       <div className="text-[9px] font-mono text-emerald-400 mt-0.5">
-                        ✓ Siap digunakan di layar login
+                        ✓ Ready for passwordless sign in
                       </div>
                     </div>
                   </div>
@@ -583,24 +583,24 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
                       className="flex-1 py-2 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 text-[#FF6B00] border border-orange-500/30 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Pindai Ulang Wajah</span>
+                      <span>Rescan Face</span>
                     </button>
                     <button
                       type="button"
                       disabled={loading}
                       onClick={handleDeleteFaceId}
                       className="px-3 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
-                      title="Hapus Face ID"
+                      title="Delete Face ID"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      <span>Hapus</span>
+                      <span>Delete</span>
                     </button>
                   </div>
                 </div>
               ) : (
                 <div className="pt-2 border-t border-slate-800/80 space-y-3">
                   <p className="text-[11px] text-slate-300 leading-relaxed">
-                    Wajah Anda belum terdaftar. Aktifkan AI biometric face ID untuk login instan tanpa mengetik password.
+                    Your face is not yet enrolled. Register your AI biometric Face ID for instant login without typing passwords.
                   </p>
                   <button
                     type="button"
@@ -608,7 +608,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
                     className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#FF6B00] to-[#E05600] text-white text-xs font-black hover:from-[#E05600] hover:to-[#C04600] transition flex items-center justify-center gap-2 shadow-lg shadow-orange-950/40 cursor-pointer active:scale-98"
                   >
                     <ScanFace className="w-4 h-4" />
-                    <span>Daftarkan Wajah AI Sekarang</span>
+                    <span>Enroll AI Face ID Now</span>
                   </button>
                 </div>
               )}
@@ -620,7 +620,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
                 onClick={onClose}
                 className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition cursor-pointer"
               >
-                Tutup
+                Close
               </button>
             </div>
 
@@ -639,7 +639,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
           onSuccess={(res: UserSessionData | any) => {
             setShowFaceRegisterModal(false);
             if (res) {
-              toast.success('AI Face ID biometrik berhasil dipindai & disimpan!', 'Face ID Terdaftar');
+              toast.success('AI Face ID biometrics scanned and saved successfully!', 'Face ID Enrolled');
               onUpdateUser({
                 ...user,
                 ...res,

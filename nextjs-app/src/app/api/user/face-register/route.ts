@@ -13,14 +13,14 @@ export async function POST(request: Request) {
         return NextResponse.json({
           success: false,
           disabled: true,
-          message: 'Fitur Pendaftaran Face ID dinonaktifkan oleh Administrator.'
+          message: 'Face ID Registration feature is currently disabled by Administrator.'
         }, { status: 403 });
       }
     } catch (e) {}
 
     if (!user_id || !descriptor || !Array.isArray(descriptor) || descriptor.length === 0) {
       return NextResponse.json(
-        { success: false, message: 'User ID dan 128-d face descriptor wajib diisi!' },
+        { success: false, message: 'User ID and 128-d face descriptor are required.' },
         { status: 400 }
       );
     }
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     const user = db.prepare('SELECT * FROM users WHERE LOWER(id) = LOWER(?)').get(cleanId) as any;
     if (!user) {
       return NextResponse.json(
-        { success: false, message: 'Pengguna tidak ditemukan dalam database.' },
+        { success: false, message: 'User profile not found in database.' },
         { status: 404 }
       );
     }
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Face ID biometrik untuk ${user.username} (${user.id}) berhasil didaftarkan!`,
+      message: `Face ID biometrics for ${user.username} (${user.id}) registered successfully!`,
       user: updatedUser
     });
   } catch (error: any) {

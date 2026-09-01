@@ -37,63 +37,63 @@ const FEATURE_CONFIGS: FeatureToggleItem[] = [
   {
     key: 'enable_face_login',
     title: 'AI Face ID Login Biometrics',
-    desc: 'Aktifkan / nonaktifkan tombol dan pemindai login biometrik wajah di halaman login.',
+    desc: 'Enable or disable AI facial recognition biometric login scanner on the sign-in portal.',
     icon: ScanFace,
     category: 'ai_auth'
   },
   {
     key: 'enable_face_registration',
     title: 'AI Face ID Registration',
-    desc: 'Izinkan pengguna memindai dan mendaftarkan 128-d neural biometric wajah di pengaturan profil.',
+    desc: 'Allow employees to scan and enroll 128-d neural biometric face descriptors in profile settings.',
     icon: Sparkles,
     category: 'ai_auth'
   },
   {
     key: 'enable_codex_approval',
-    title: 'Modul Codex & Digital Signature',
-    desc: 'Aktifkan sistem persetujuan lembur & penandatanganan digital sertifikat Codex.',
+    title: 'Codex Module & Digital Signature',
+    desc: 'Enable supervisory overtime approval workflows and digital cryptographic signature verification.',
     icon: FileCheck,
     category: 'modules'
   },
   {
     key: 'enable_workhour_analytics',
-    title: 'Dashboard Analitik Jam Kerja',
-    desc: 'Aktifkan visualisasi chart analitik produktivitas dan jam kerja tim.',
+    title: 'Work Hour Analytics Dashboard',
+    desc: 'Enable interactive workforce productivity charts, annual trends, and area breakdown analytics.',
     icon: BarChart3,
     category: 'modules'
   },
   {
     key: 'enable_audit_log',
     title: 'System Security Audit Trail',
-    desc: 'Catat dan tampilkan jejak audit keamanan seluruh aksi pengguna dalam sistem.',
+    desc: 'Record and display immutable security audit trails of all sensitive user activities in the system.',
     icon: ShieldCheck,
     category: 'modules'
   },
   {
     key: 'enable_database_migration',
     title: 'Database Backup & Excel Migration',
-    desc: 'Aktifkan alat download backup database, reset, dan migrasi Google Sheets/Excel.',
+    desc: 'Enable database backup downloads, factory reset utilities, and Google Sheets/Excel migration tools.',
     icon: Server,
     category: 'modules'
   },
   {
     key: 'enable_realtime_socket',
     title: 'Real-time Live Stream & Presence Sync',
-    desc: 'Aktifkan koneksi SSE (Server-Sent Events) untuk sinkronisasi instan multi-user.',
+    desc: 'Enable SSE (Server-Sent Events) live streaming for instant multi-user presence and state synchronization.',
     icon: Radio,
     category: 'rules'
   },
   {
     key: 'enable_retroactive_entry',
-    title: 'Input Absensi Tanggal Mundur',
-    desc: 'Izinkan pengguna menginput atau mengoreksi data timesheet untuk tanggal yang telah lewat.',
+    title: 'Retroactive Timesheet Entry',
+    desc: 'Allow team members to submit or revise timesheet entries for past dates.',
     icon: CalendarClock,
     category: 'rules'
   },
   {
     key: 'allow_overtime_entry',
-    title: 'Pengisian Jam Lembur (Overtime)',
-    desc: 'Izinkan pengguna menambahkan jam lembur di atas jam kerja standar 8 jam.',
+    title: 'Overtime Hours Entry',
+    desc: 'Allow employees to record additional overtime hours beyond the standard 8-hour shift.',
     icon: Clock,
     category: 'rules'
   }
@@ -126,13 +126,13 @@ export default function SuperuserTab({ currentUser, onSettingsChanged }: Superus
         setSettings(data.settings);
         if (onSettingsChanged) onSettingsChanged(data.settings);
         if (isManualRefresh) {
-          toast.success('Pengaturan sistem berhasil disinkronkan dari database.', 'Status Terkini');
+          toast.success('System configurations synchronized from database.', 'Latest Status');
         }
       } else {
-        toast.error(data.error || 'Gagal memuat pengaturan sistem.', 'Error Sistem');
+        toast.error(data.error || 'Failed to load system settings.', 'System Error');
       }
     } catch (err: any) {
-      toast.error('Gagal menghubungi server untuk memuat pengaturan.', 'Koneksi Terputus');
+      toast.error('Failed to connect to server to fetch system settings.', 'Connection Error');
     } finally {
       setLoading(false);
     }
@@ -166,16 +166,16 @@ export default function SuperuserTab({ currentUser, onSettingsChanged }: Superus
         setSettings(data.settings);
         if (onSettingsChanged) onSettingsChanged(data.settings);
         
-        const statusText = nextVal ? 'Diaktifkan (ON)' : 'Dinonaktifkan (OFF)';
-        toast.success(`Fitur "${itemTitle}" sekarang ${statusText}.`, 'Pengaturan Disimpan');
+        const statusText = nextVal ? 'Enabled (ON)' : 'Disabled (OFF)';
+        toast.success(`Feature "${itemTitle}" is now ${statusText}.`, 'Settings Saved');
       } else {
         // Rollback
         setSettings(settings);
-        toast.error(data.error || 'Gagal menyimpan perubahan saklar.', 'Gagal Menyimpan');
+        toast.error(data.error || 'Failed to save toggle state.', 'Save Failed');
       }
     } catch (err: any) {
       setSettings(settings);
-      toast.error('Koneksi terputus saat menyimpan pengaturan.', 'Error Server');
+      toast.error('Connection lost while saving settings.', 'Server Error');
     } finally {
       setUpdatingKey(null);
     }
@@ -208,7 +208,7 @@ export default function SuperuserTab({ currentUser, onSettingsChanged }: Superus
                 </span>
               </div>
               <p className="text-xs text-slate-300 font-medium mt-1">
-                Pusat kendali fitur global &amp; saklar on/off modul aplikasi Timesheet METSO.
+                Global governance center &amp; operational feature switches for the METSO Timesheet System.
               </p>
             </div>
           </div>

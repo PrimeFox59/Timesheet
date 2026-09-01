@@ -75,7 +75,7 @@ export default function FaceIdLoginModal({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   
-  const [statusMessage, setStatusMessage] = useState<string>('Memuat AI Neural Models...');
+  const [statusMessage, setStatusMessage] = useState<string>('Loading AI Neural Models...');
   const [hasFaceDetected, setHasFaceDetected] = useState<boolean>(false);
   const [registeredUsers, setRegisteredUsers] = useState<RegisteredEmbedding[]>([]);
   const [matchedUser, setMatchedUser] = useState<RegisteredEmbedding | null>(null);
@@ -122,7 +122,7 @@ export default function FaceIdLoginModal({
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
     setIsCapturing(true);
-    setStatusMessage(`Memverifikasi autentikasi ${target.username}...`);
+    setStatusMessage(`Verifying authentication for ${target.username}...`);
 
     try {
       const res = await fetch(apiUrl('/api/auth/face-login'), {
@@ -138,7 +138,7 @@ export default function FaceIdLoginModal({
       const data = await res.json();
       if (data.success && data.user) {
         setSuccessResult(data.user);
-        setStatusMessage(`✅ Selamat datang, ${data.user.username}!`);
+        setStatusMessage(`✅ Welcome back, ${data.user.username}!`);
         setTimeout(() => {
           stopCamera();
           onSuccess(data.user);
@@ -146,12 +146,12 @@ export default function FaceIdLoginModal({
       } else {
         isSubmittingRef.current = false;
         setIsCapturing(false);
-        setStatusMessage(data.message || 'Verifikasi biometrik gagal.');
+        setStatusMessage(data.message || 'Biometric verification failed.');
       }
     } catch (err: any) {
       isSubmittingRef.current = false;
       setIsCapturing(false);
-      setStatusMessage('Gagal menghubungi server untuk autentikasi.');
+      setStatusMessage('Failed to connect to authentication server.');
     }
   }, [stopCamera, onSuccess]);
 
@@ -160,19 +160,19 @@ export default function FaceIdLoginModal({
     if (isCapturing || isSubmittingRef.current) return;
     const activeUserId = userId || targetUserId;
     if (!activeUserId) {
-      setStatusMessage('User ID tidak valid.');
+      setStatusMessage('Invalid User ID.');
       return;
     }
 
     const video = videoRef.current;
     if (!video || !window.faceapi) {
-      setStatusMessage('Kamera atau AI belum siap.');
+      setStatusMessage('Camera or AI models not ready.');
       return;
     }
 
     setIsCapturing(true);
     isSubmittingRef.current = true;
-    setStatusMessage('Mengambil sampel biometrik wajah & snapshot...');
+    setStatusMessage('Capturing face biometric samples & snapshot...');
 
     try {
       let detection = latestDetectionRef.current;
@@ -188,7 +188,7 @@ export default function FaceIdLoginModal({
       if (!detection || !detection.descriptor) {
         setIsCapturing(false);
         isSubmittingRef.current = false;
-        setStatusMessage('⚠️ Wajah tidak terdeteksi! Pastikan wajah terlihat jelas di kamera.');
+        setStatusMessage('⚠️ Face not detected! Please ensure your face is clearly visible.');
         return;
       }
 
@@ -218,7 +218,7 @@ export default function FaceIdLoginModal({
       const data = await res.json();
       if (data.success && data.user) {
         setSuccessResult(data.user);
-        setStatusMessage('✅ Face ID Berhasil Didaftarkan!');
+        setStatusMessage('✅ Face ID Registered Successfully!');
         setTimeout(() => {
           stopCamera();
           onSuccess(data.user);
@@ -226,12 +226,12 @@ export default function FaceIdLoginModal({
       } else {
         setIsCapturing(false);
         isSubmittingRef.current = false;
-        setStatusMessage(data.message || 'Gagal mendaftarkan wajah.');
+        setStatusMessage(data.message || 'Failed to register face biometrics.');
       }
     } catch (err: any) {
       setIsCapturing(false);
       isSubmittingRef.current = false;
-      setStatusMessage('Error pendaftaran: ' + (err.message || 'Koneksi terputus'));
+      setStatusMessage('Registration error: ' + (err.message || 'Connection lost'));
     }
   };
 
@@ -295,7 +295,7 @@ export default function FaceIdLoginModal({
               const score = Math.round((1 - minDistance) * 100);
               setMatchedUser(bestMatch);
               setMatchScore(score);
-              setStatusMessage(`Wajah Cocok: ${bestMatch.username} (${score}%)`);
+              setStatusMessage(`Face Matched: ${bestMatch.username} (${score}%)`);
 
               consecutiveMatchCountRef.current += 1;
               if (consecutiveMatchCountRef.current >= 2) {
@@ -307,12 +307,12 @@ export default function FaceIdLoginModal({
               setMatchScore(0);
               setStatusMessage(
                 candidates.length === 0 
-                  ? 'Belum ada wajah terdaftar di database.' 
-                  : 'Wajah terdeteksi (Mencocokkan...)'
+                  ? 'No registered face profiles in database.' 
+                  : 'Face detected (Matching...)'
               );
             }
           } else {
-            setStatusMessage('✓ Wajah Terdeteksi! Klik "Simpan Biometrik Wajah" di bawah.');
+            setStatusMessage('✓ Face Detected! Click "Save Face Biometrics" below.');
           }
         } else {
           setHasFaceDetected(false);
@@ -321,7 +321,7 @@ export default function FaceIdLoginModal({
             setMatchedUser(null);
             setMatchScore(0);
           }
-          setStatusMessage('Posisikan wajah Anda tepat di depan kamera...');
+          setStatusMessage('Position your face directly in front of the camera...');
         }
       } catch (err) {
         // Frame drop tolerance
@@ -337,7 +337,7 @@ export default function FaceIdLoginModal({
     setCameraError(null);
     setModelError(null);
     setIsLoadingModels(true);
-    setStatusMessage('Memuat AI Neural Models (face-api.js)...');
+    setStatusMessage('Loading AI Neural Models (face-api.js)...');
     setSuccessResult(null);
     setMatchedUser(null);
     setHasFaceDetected(false);
@@ -346,7 +346,7 @@ export default function FaceIdLoginModal({
     const modelsReady = await loadFaceApiModels();
     if (!modelsReady) {
       setIsLoadingModels(false);
-      setModelError('Gagal memuat AI Model Face Recognition. Periksa koneksi jaringan.');
+      setModelError('Failed to load AI Face Recognition models. Please check network connection.');
       return;
     }
     setIsLoadingModels(false);
@@ -360,7 +360,7 @@ export default function FaceIdLoginModal({
     // 3. Request Camera Stream
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Akses kamera tidak didukung di browser ini.');
+        throw new Error('Camera access is not supported in this browser.');
       }
 
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -378,14 +378,14 @@ export default function FaceIdLoginModal({
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
           videoRef.current?.play().catch(e => console.warn('Autoplay prevented:', e));
-          setStatusMessage('Kamera aktif. Arahkan wajah ke layar...');
+          setStatusMessage('Camera active. Look directly at the screen...');
           startDetectionLoop(descriptors);
         };
       }
     } catch (err: any) {
-      const msg = err instanceof Error ? err.message : 'Gagal membuka kamera.';
+      const msg = err instanceof Error ? err.message : 'Failed to access camera.';
       setCameraError(msg);
-      setStatusMessage('Gagal membuka kamera.');
+      setStatusMessage('Failed to access camera.');
     }
   }, [mode, facingMode, stopCamera, fetchRegisteredDescriptors, startDetectionLoop]);
 
@@ -434,7 +434,7 @@ export default function FaceIdLoginModal({
               </div>
               <p className="text-[11px] text-slate-400 font-medium flex items-center gap-1 mt-0.5">
                 <Zap className="w-3 h-3 text-orange-400" />
-                {mode === 'register' ? 'Pemindaian 68 titik landmark neural' : 'Verifikasi biometrik 128-d instan'}
+                {mode === 'register' ? '68-point neural facial landmark scan' : 'Instant 128-d biometric verification'}
               </p>
             </div>
           </div>
@@ -442,7 +442,7 @@ export default function FaceIdLoginModal({
           <div className="flex items-center gap-1.5">
             <button
               onClick={toggleFacingMode}
-              title="Ganti Kamera"
+              title="Switch Camera"
               className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700/50 cursor-pointer"
             >
               <SwitchCamera className="w-4 h-4" />
@@ -450,7 +450,7 @@ export default function FaceIdLoginModal({
 
             <button
               onClick={onClose}
-              title="Tutup"
+              title="Close"
               className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors border border-slate-700/50 cursor-pointer"
             >
               <X className="w-4 h-4" />
@@ -465,7 +465,7 @@ export default function FaceIdLoginModal({
             <div className="p-6 text-center space-y-3 z-10">
               <div className="w-10 h-10 border-3 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto" />
               <p className="text-xs text-orange-300 font-bold leading-relaxed">{statusMessage}</p>
-              <p className="text-[10px] text-slate-400">Memuat TinyFace &amp; ResNet-34 neural weights...</p>
+              <p className="text-[10px] text-slate-400">Loading TinyFace &amp; ResNet-34 neural weights...</p>
             </div>
           ) : modelError || cameraError ? (
             <div className="p-6 text-center space-y-3 z-10">
@@ -476,7 +476,7 @@ export default function FaceIdLoginModal({
                 className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 transition-all inline-flex items-center gap-1.5 cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
-                Coba Lagi
+                Try Again
               </button>
             </div>
           ) : (
@@ -530,7 +530,7 @@ export default function FaceIdLoginModal({
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <h4 className="text-base font-extrabold text-white">
-                {mode === 'register' ? 'Pendaftaran Sukses!' : 'Autentikasi Berhasil!'}
+                {mode === 'register' ? 'Registration Successful!' : 'Authentication Successful!'}
               </h4>
               <p className="text-xs text-emerald-200 font-medium">
                 {successResult.username} ({successResult.id})
@@ -575,7 +575,7 @@ export default function FaceIdLoginModal({
                 disabled={isCapturing}
                 className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-1 shadow-md shadow-emerald-950/40 cursor-pointer"
               >
-                <span>Masuk</span>
+                <span>Sign In</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -595,12 +595,12 @@ export default function FaceIdLoginModal({
               {isCapturing ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  <span>Menyimpan Biometrik Wajah...</span>
+                  <span>Saving Face Biometrics...</span>
                 </>
               ) : (
                 <>
                   <Camera className="w-4 h-4" />
-                  <span>{hasFaceDetected ? 'Simpan Biometrik Wajah Sekarang' : 'Posisikan Wajah & Simpan'}</span>
+                  <span>{hasFaceDetected ? 'Save Face Biometrics Now' : 'Position Face & Save'}</span>
                 </>
               )}
             </button>
@@ -611,14 +611,14 @@ export default function FaceIdLoginModal({
             <button
               onClick={() => {
                 if (registeredUsers.length > 0) {
-                  setStatusMessage('Mencocokkan wajah dengan seluruh data karyawan...');
+                  setStatusMessage('Matching face with employee directory...');
                 }
               }}
               disabled={isLoadingModels || !!cameraError}
               className="w-full py-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-slate-700/60 text-slate-300 text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
             >
               <ScanFace className="w-3.5 h-3.5 text-[#FF6B00]" />
-              <span>Pindai Wajah Manual</span>
+              <span>Scan Face Manually</span>
             </button>
           )}
 

@@ -407,7 +407,7 @@ export default function Home() {
                     }`}
                   >
                     <Clock className="w-4 h-4" />
-                    <span>Input Timesheet</span>
+                    <span>Timesheet Entry</span>
                   </button>
 
                   <button
