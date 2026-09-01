@@ -54,11 +54,15 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
     .filter(Boolean);
 
   const getInitialAreas = () => {
-    const list = [...initialPrefAreas];
-    while (list.length < numAreas) {
-      list.push(areasList[0] || 'CMN');
+    const list: string[] = [];
+    for (let i = 0; i < numAreas; i++) {
+      if (i === 0) {
+        list.push(initialPrefAreas[0] || areasList[0] || 'CMN');
+      } else {
+        list.push(initialPrefAreas[i] || '');
+      }
     }
-    return list.slice(0, numAreas);
+    return list;
   };
 
   const defaultShift = user?.preferred_shift || 'Day Shift';
@@ -115,16 +119,21 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
 
           if (saved) {
             // Populate from saved database record
-            const savedAreas = [saved.area1, saved.area2, saved.area3, saved.area4].filter(Boolean);
-            while (savedAreas.length < numAreas) {
-              savedAreas.push(areasList[0] || 'CMN');
+            const savedAreas: string[] = [];
+            const rawSaved = [saved.area1, saved.area2, saved.area3, saved.area4];
+            for (let i = 0; i < numAreas; i++) {
+              if (i === 0) {
+                savedAreas.push(rawSaved[0] || initialPrefAreas[0] || areasList[0] || 'CMN');
+              } else {
+                savedAreas.push(rawSaved[i] || '');
+              }
             }
             newRows.push({
               dateStr,
               dayName,
               hours: Number(saved.working_hours ?? saved.hours) || 0,
               overtime: Number(saved.overtime_hours ?? saved.overtime) || 0,
-              areas: savedAreas.slice(0, numAreas),
+              areas: savedAreas,
               shift: saved.shift || defaultShift,
               remark: saved.remark || ''
             });
@@ -276,14 +285,14 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
         </div>
       )}
 
-      {/* Date Range Selection & Export Template Bar */}
+      {/* Date Range Selection Bar */}
       <div className="glass-card rounded-2xl p-5 space-y-3">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 w-full">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-[#FF6B00]" />
-                Start Date (Y/M/D)
+                Start Date
               </label>
               <input
                 type="date"
@@ -296,7 +305,7 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-[#FF6B00]" />
-                End Date (Y/M/D)
+                End Date
               </label>
               <input
                 type="date"
@@ -307,20 +316,6 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
               />
             </div>
           </div>
-
-          {(user?.id?.toLowerCase() === 'prime' || user?.role?.toLowerCase() === 'superuser' || systemSettings?.feature_excel_export !== false) && (
-            <div className="shrink-0 self-end">
-              <button
-                type="button"
-                onClick={handleExportMetsoTemplate}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-2 transition"
-                title="Download filled Metso Timesheet Excel matching Timesheet_Template_v2.xlsx"
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                <span>Export Metso Excel Template</span>
-              </button>
-            </div>
-          )}
         </div>
 
         {startDate && endDate && (
@@ -464,11 +459,12 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
                         {Array.from({ length: numAreas }).map((_, aIdx) => (
                           <td key={aIdx} className="px-2 py-1.5">
                             <select
-                              value={row.areas[aIdx] || ''}
+                              value={row.areas[aIdx] || (aIdx === 0 ? (areasList[0] || 'CMN') : '')}
                               onChange={e => handleRowAreaChange(rIdx, aIdx, e.target.value)}
                               className="w-full px-2 py-1 text-xs font-semibold rounded-lg border border-slate-200 bg-white/90 focus:border-[#FF6B00]"
+                              required={aIdx === 0}
                             >
-                              <option value="">-- None --</option>
+                              {aIdx > 0 && <option value="">-- None --</option>}
                               {areasList.map(a => (
                                 <option key={a} value={a}>{a}</option>
                               ))}
@@ -507,7 +503,7 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
           </div>
 
           {/* Grid Summary Footer */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 rounded-xl bg-orange-50/80 border border-orange-200/80 text-xs font-semibold text-orange-950">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 rounded-xl bg-orange-50/80 border border-orange-200/80 text-xs font-semibold text-orange-950">
             <div className="flex items-center gap-4">
               <span>Total Days: <strong>{rows.length}</strong></span>
               <span>Reg Hours: <strong className="text-slate-900">{totalRegHours} hrs</strong></span>
@@ -515,19 +511,22 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
             </div>
 
             <div className="flex items-center gap-2 w-full sm:w-auto">
-              <button
-                type="button"
-                onClick={handleExportMetsoTemplate}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 shadow"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Export Metso Excel</span>
-              </button>
+              {(user?.id?.toLowerCase() === 'prime' || user?.role?.toLowerCase() === 'superuser' || systemSettings?.feature_excel_export !== false) && (
+                <button
+                  type="button"
+                  onClick={handleExportMetsoTemplate}
+                  className="px-4 py-2.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 shadow transition active:scale-95 cursor-pointer"
+                  title="Download filled Metso Timesheet Excel matching Timesheet_Template_v2.xlsx"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>Export Metso Excel</span>
+                </button>
+              )}
 
               <button
                 type="submit"
                 disabled={submitting || rows.length === 0}
-                className="px-6 py-2 rounded-xl text-xs font-bold btn-orange flex items-center gap-2 shadow-md w-full sm:w-auto justify-center"
+                className="px-6 py-2.5 rounded-xl text-xs font-bold btn-orange flex items-center gap-2 shadow-md w-full sm:w-auto justify-center transition active:scale-95 cursor-pointer"
               >
                 {submitting ? (
                   <span>Submitting...</span>
