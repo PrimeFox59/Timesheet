@@ -41,7 +41,8 @@ import {
   ScanFace, 
   ShieldAlert, 
   FolderKanban, 
-  CheckCircle2 
+  CheckCircle2,
+  HelpCircle 
 } from 'lucide-react';
 
 export default function Home() {
@@ -285,6 +286,20 @@ export default function Home() {
               connected={true}
             />
           )}
+
+          {/* Floating Bottom-Left Help & App Tour Button */}
+          <div className="fixed left-5 bottom-5 z-40 select-none">
+            <button
+              onClick={() => setShowAppTour(true)}
+              className="group flex items-center gap-2 px-3.5 py-2 rounded-full bg-white/90 dark:bg-slate-900/90 hover:bg-white text-slate-700 hover:text-slate-900 border border-slate-200/80 shadow-lg shadow-slate-900/5 hover:shadow-xl backdrop-blur-md transition-all active:scale-95 cursor-pointer font-bold text-xs"
+              title="Start Interactive App Tour & System Guide"
+            >
+              <div className="w-5 h-5 rounded-full bg-orange-500/15 text-[#FF6B00] flex items-center justify-center group-hover:scale-110 transition-transform">
+                <HelpCircle className="w-3.5 h-3.5" />
+              </div>
+              <span className="font-semibold text-slate-800 text-xs">Help &amp; Tour</span>
+            </button>
+          </div>
 
           {/* Interactive Walkthrough Tour */}
           <InteractiveAppTour

@@ -46,19 +46,6 @@ export default function Navbar({ user, onLogout, onOpenProfileSettings, onOpenAp
         {/* User Info & Actions */}
         {user && (
           <div className="flex items-center gap-3 sm:gap-4">
-            
-            {/* Interactive Tour Quick Launcher */}
-            {onOpenAppTour && (
-              <button
-                onClick={onOpenAppTour}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-50 hover:bg-orange-100/80 text-orange-600 border border-orange-200/70 text-xs font-bold transition-all active:scale-95 shadow-2xs hover:shadow cursor-pointer"
-                title="Start Interactive App Tour"
-              >
-                <Compass className="w-3.5 h-3.5 text-[#FF6B00]" />
-                <span className="hidden md:inline">App Tour</span>
-              </button>
-            )}
-
             {/* Profile Avatar Button */}
             <button
               id="tour-navbar-profile"
