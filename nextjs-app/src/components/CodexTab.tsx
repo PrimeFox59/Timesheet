@@ -399,7 +399,7 @@ export default function CodexTab({ currentUser, usersList }: CodexTabProps) {
 
   // Export Metso Excel Template for User
   const handleExportUserExcel = (userId: string) => {
-    window.open(`/api/timesheet/export-template?userId=${encodeURIComponent(userId)}&month=${encodeURIComponent(selectedMonth)}`, '_blank');
+    window.open(apiUrl(`/api/timesheet/export-template?userId=${encodeURIComponent(userId)}&month=${encodeURIComponent(selectedMonth)}`), '_blank');
   };
 
   return (

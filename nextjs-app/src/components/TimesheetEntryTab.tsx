@@ -195,7 +195,7 @@ export default function TimesheetEntryTab({ user, areasList }: TimesheetEntryTab
   const handleExportMetsoTemplate = () => {
     if (!startDate || !user?.id) return;
     const month = startDate.substring(0, 7); // YYYY-MM
-    window.open(`/api/timesheet/export-template?userId=${encodeURIComponent(user.id)}&month=${encodeURIComponent(month)}`, '_blank');
+    window.open(apiUrl(`/api/timesheet/export-template?userId=${encodeURIComponent(user.id)}&month=${encodeURIComponent(month)}`), '_blank');
   };
 
   // Calculations
