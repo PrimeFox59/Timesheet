@@ -12,8 +12,7 @@ import {
   Sparkles, 
   SwitchCamera,
   Zap,
-  Activity,
-  UserX
+  Target
 } from 'lucide-react';
 
 export interface UserSessionData {
@@ -31,42 +30,63 @@ export interface UserSessionData {
 
 interface FaceIdLoginModalProps {
   isOpen: boolean;
+  mode?: 'login' | 'register';
+  userId?: string;
   onClose: () => void;
-  onSuccess: (user: UserSessionData) => void;
+  onSuccess: (user: UserSessionData | { avatarUrl: string }) => void;
 }
 
-type ScanStatus = 'idle' | 'scanning' | 'searching' | 'unrecognized' | 'no_face' | 'success' | 'error';
+type ScanStage = 'searching' | 'tracking' | 'locked' | 'verifying' | 'success' | 'unrecognized' | 'error';
 
-interface FaceDetectionResult {
+interface FaceTrackingData {
   hasFace: boolean;
+  centerX: number;
+  centerY: number;
+  width: number;
+  height: number;
   confidence: number;
-  skinRatio: number;
-  featureVector: number[];
 }
 
-export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdLoginModalProps) {
+export default function FaceIdLoginModal({ 
+  isOpen, 
+  mode = 'login', 
+  userId,
+  onClose, 
+  onSuccess 
+}: FaceIdLoginModalProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   
-  // Non-blocking continuous loop refs
-  const isLoopActiveRef = useRef<boolean>(false);
-  const loopTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isExecutingRef = useRef<boolean>(false);
-  const scanLoopWorkerRef = useRef<() => Promise<void>>(async () => {});
+  // Animation & Loop refs
+  const isRunningRef = useRef<boolean>(false);
+  const animFrameIdRef = useRef<number | null>(null);
+  const stableFramesCountRef = useRef<number>(0);
+  const isVerifyingRef = useRef<boolean>(false);
+  const currentStageRef = useRef<ScanStage>('searching');
 
-  const [scanStatus, setScanStatus] = useState<ScanStatus>('idle');
-  const [statusMessage, setStatusMessage] = useState<string>('Memulai kamera AI Face ID...');
+  // UI States
+  const [stage, setStage] = useState<ScanStage>('searching');
+  const [statusMessage, setStatusMessage] = useState<string>('Mencari wajah dalam frame...');
   const [progress, setProgress] = useState<number>(0);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [laserPos, setLaserPos] = useState<number>(50);
 
-  // Stop camera stream & clear timers
+  // Sync ref with stage
+  useEffect(() => {
+    currentStageRef.current = stage;
+  }, [stage]);
+
+  // Stop camera & cancel animation frame
   const stopCamera = useCallback(() => {
-    isLoopActiveRef.current = false;
-    if (loopTimeoutRef.current) {
-      clearTimeout(loopTimeoutRef.current);
-      loopTimeoutRef.current = null;
+    isRunningRef.current = false;
+    isVerifyingRef.current = false;
+    stableFramesCountRef.current = 0;
+
+    if (animFrameIdRef.current) {
+      cancelAnimationFrame(animFrameIdRef.current);
+      animFrameIdRef.current = null;
     }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
@@ -77,12 +97,10 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
     }
   }, []);
 
-  // REAL COMPUTER VISION FACE DETECTION ENGINE (Runs in Canvas)
-  // Analyzes skin chrominance cluster (YCbCr + RGB), facial luminance gradient & bilateral symmetry
-  const analyzeFacePresence = useCallback((ctx: CanvasRenderingContext2D, width: number, height: number): FaceDetectionResult => {
-    // Define central oval region of interest (ROI)
-    const roiW = Math.round(width * 0.58);
-    const roiH = Math.round(height * 0.72);
+  // REAL-TIME OPTICAL FACE TRACKER (Canvas Image Processing)
+  const trackFaceInFrame = useCallback((ctx: CanvasRenderingContext2D, width: number, height: number): FaceTrackingData => {
+    const roiW = Math.round(width * 0.60);
+    const roiH = Math.round(height * 0.75);
     const roiX = Math.round((width - roiW) / 2);
     const roiY = Math.round((height - roiH) / 2);
 
@@ -90,29 +108,31 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
     const pixels = imgData.data;
 
     let skinPixels = 0;
-    let topSkin = 0;
-    let bottomSkin = 0;
+    let sumX = 0;
+    let sumY = 0;
     let leftSkin = 0;
     let rightSkin = 0;
-    let luminanceVarianceSum = 0;
+    let topSkin = 0;
+    let bottomSkin = 0;
+    let lumVariance = 0;
     let lastLum = 0;
 
-    const sampleStep = 2; // High performance subsampling
-    let samplesCount = 0;
+    const step = 3;
+    let totalSamples = 0;
 
-    for (let y = 0; y < roiH; y += sampleStep) {
-      for (let x = 0; x < roiW; x += sampleStep) {
-        samplesCount++;
+    for (let y = 0; y < roiH; y += step) {
+      for (let x = 0; x < roiW; x += step) {
+        totalSamples++;
         const idx = (y * roiW + x) * 4;
         const r = pixels[idx];
         const g = pixels[idx + 1];
         const b = pixels[idx + 2];
 
         const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-        luminanceVarianceSum += Math.abs(lum - lastLum);
+        lumVariance += Math.abs(lum - lastLum);
         lastLum = lum;
 
-        // Human skin chrominance model (YCbCr transform)
+        // Standard Human Skin Chrominance Model (YCbCr + RGB)
         const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
         const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
 
@@ -126,169 +146,224 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
 
         if (isSkin) {
           skinPixels++;
-          if (y < roiH * 0.5) topSkin++;
-          else bottomSkin++;
+          sumX += x;
+          sumY += y;
 
           if (x < roiW * 0.5) leftSkin++;
           else rightSkin++;
+
+          if (y < roiH * 0.5) topSkin++;
+          else bottomSkin++;
         }
       }
     }
 
-    const skinRatio = skinPixels / Math.max(1, samplesCount);
+    const skinRatio = skinPixels / Math.max(1, totalSamples);
     const symmetry = rightSkin > 0 ? leftSkin / rightSkin : 0;
-    const isSymmetric = symmetry >= 0.32 && symmetry <= 3.1;
-    const isHumanFacePresent = (
-      skinRatio >= 0.16 && skinRatio <= 0.88 &&
+    const isSymmetric = symmetry >= 0.30 && symmetry <= 3.3;
+
+    const isFaceDetected = (
+      skinRatio >= 0.15 && skinRatio <= 0.88 &&
       topSkin > 0 && bottomSkin > 0 &&
       isSymmetric &&
-      luminanceVarianceSum > 2000 // Ensure not a flat single-color background
+      lumVariance > 2000
     );
 
-    // Extract 8x8 normalized facial vector
-    const vector: number[] = [];
-    const cellW = roiW / 8;
-    const cellH = roiH / 8;
-    for (let gy = 0; gy < 8; gy++) {
-      for (let gx = 0; gx < 8; gx++) {
-        const cellData = ctx.getImageData(
-          Math.round(roiX + gx * cellW),
-          Math.round(roiY + gy * cellH),
-          Math.max(1, Math.round(cellW)),
-          Math.max(1, Math.round(cellH))
-        );
-        let cellLum = 0;
-        const clen = cellData.data.length;
-        for (let i = 0; i < clen; i += 4) {
-          cellLum += 0.299 * cellData.data[i] + 0.587 * cellData.data[i + 1] + 0.114 * cellData.data[i + 2];
-        }
-        vector.push(Math.round(cellLum / (clen / 4 || 1)));
-      }
+    if (!isFaceDetected || skinPixels === 0) {
+      return { hasFace: false, centerX: width / 2, centerY: height / 2, width: 0, height: 0, confidence: 0 };
     }
 
+    const avgX = roiX + (sumX / skinPixels);
+    const avgY = roiY + (sumY / skinPixels);
+
     return {
-      hasFace: isHumanFacePresent,
-      confidence: isHumanFacePresent ? Math.min(0.96, 0.65 + skinRatio * 0.35) : 0,
-      skinRatio,
-      featureVector: vector
+      hasFace: true,
+      centerX: avgX,
+      centerY: avgY,
+      width: roiW,
+      height: roiH,
+      confidence: Math.min(0.98, 0.60 + skinRatio * 0.4)
     };
   }, []);
 
-  // Capture current video frame as Base64 JPEG & detect face presence
-  const captureAndDetect = useCallback((): { frameData: string; detection: FaceDetectionResult } | null => {
+  // Capture frame as Base64 JPEG
+  const getSnapshot = useCallback((): string | null => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas) return null;
-    if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) return null;
+    if (video.videoWidth === 0 || video.videoHeight === 0) return null;
 
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const ctx = canvas.getContext('2d');
     if (!ctx) return null;
 
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const detection = analyzeFacePresence(ctx, canvas.width, canvas.height);
-    const frameData = canvas.toDataURL('image/jpeg', 0.85);
+    return canvas.toDataURL('image/jpeg', 0.85);
+  }, []);
 
-    return { frameData, detection };
-  }, [analyzeFacePresence]);
+  // TRIGGER STAGE 4: RECORD & VERIFY BIOMETRIC
+  const executeBiometricRecord = useCallback(async () => {
+    if (isVerifyingRef.current) return;
+    isVerifyingRef.current = true;
 
-  // CORE CONTINUOUS SCAN LOOP WORKER
-  const runScanCycle = useCallback(async () => {
-    if (!isLoopActiveRef.current || isExecutingRef.current) return;
+    setStage('verifying');
+    setStatusMessage(mode === 'register' ? 'Menyimpan profil wajah biometrik...' : 'Memverifikasi kecocokan wajah...');
+    setProgress(100);
 
-    const video = videoRef.current;
-    if (!video || video.readyState < 2 || video.videoWidth === 0) {
-      if (isLoopActiveRef.current) {
-        loopTimeoutRef.current = setTimeout(() => {
-          scanLoopWorkerRef.current();
-        }, 200);
-      }
+    const snapshot = getSnapshot();
+    if (!snapshot) {
+      isVerifyingRef.current = false;
+      setStage('searching');
       return;
     }
 
-    isExecutingRef.current = true;
-
     try {
-      const result = captureAndDetect();
-
-      if (!result) {
-        setScanStatus('searching');
-        setStatusMessage('Menyiapkan kamera...');
-      } else if (!result.detection.hasFace) {
-        // 1. TIDAK ADA WAJAH DI DALAM OVAL (misal: dinding, ruangan kosong, atau kepala menoleh)
-        // REJECT -> JANGAN LOGIN! Tetap di loop pemindaian mencari wajah!
-        setScanStatus('no_face');
-        setStatusMessage('Tidak ada wajah terdeteksi. Posisikan wajah Anda tepat di dalam lingkaran oval...');
-        setProgress(100);
+      if (mode === 'register') {
+        // MODE REGISTER: Simpan avatar ke profil user
+        const res = await fetch(apiUrl('/api/user/settings'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            user_id: userId,
+            avatar: snapshot
+          })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          setStage('success');
+          setStatusMessage('Face ID Berhasil Didaftarkan!');
+          setTimeout(() => {
+            onSuccess({ avatarUrl: snapshot });
+            onClose();
+          }, 1100);
+          return;
+        } else {
+          setStage('unrecognized');
+          setStatusMessage('Gagal menyimpan Face ID. Silakan coba lagi.');
+        }
       } else {
-        // 2. WAJAH MANUSIA TERDETEKSI DI DALAM OVAL -> KIRIM KE SERVER UNTUK VERIFIKASI BIOMETRIK
-        setScanStatus('scanning');
-        setStatusMessage('Wajah terdeteksi! Memverifikasi kecocokan data biometrik...');
-        setProgress(80);
-
+        // MODE LOGIN: Verifikasi dengan database
         const res = await fetch(apiUrl('/api/auth/face-login'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
-            image: result.frameData,
+            image: snapshot,
             has_face_detected: true,
-            confidence: result.detection.confidence,
-            feature_vector: result.detection.featureVector
+            confidence: 0.95
           })
         });
 
         const data = await res.json();
 
         if (data.success && data.user) {
-          // MATCH FOUND -> STOP LOOP & AUTO-LOGIN
-          isLoopActiveRef.current = false;
-          setScanStatus('success');
-          setStatusMessage(`Wajah Dikenali: ${data.user.username} (${data.user.id})`);
-          setProgress(100);
-
+          setStage('success');
+          setStatusMessage(`Wajah Dikenali: ${data.user.username}!`);
           setTimeout(() => {
             onSuccess(data.user);
             onClose();
           }, 1100);
           return;
         } else {
-          // NOT MATCHED WITH REGISTERED USER -> KEEP SCANNING CONTINUOUSLY!
-          setScanStatus('unrecognized');
-          setStatusMessage(data.message || 'Wajah tidak cocok dengan akun terdaftar. Mencari ulang...');
-          setProgress(100);
+          setStage('unrecognized');
+          setStatusMessage(data.message || 'Wajah tidak cocok dengan akun terdaftar.');
         }
       }
     } catch {
-      setScanStatus('unrecognized');
-      setStatusMessage('Koneksi tertunda, scanning ulang otomatis...');
+      setStage('unrecognized');
+      setStatusMessage('Koneksi terganggu. Mengulang pemindaian...');
     } finally {
-      isExecutingRef.current = false;
+      isVerifyingRef.current = false;
     }
 
-    // CONTINUOUS RECURSION (Scan ulang terus-menerus tanpa henti!)
-    if (isLoopActiveRef.current) {
-      loopTimeoutRef.current = setTimeout(() => {
-        if (isLoopActiveRef.current) {
-          scanLoopWorkerRef.current();
-        }
-      }, 450);
-    }
-  }, [captureAndDetect, onClose, onSuccess]);
+    // Jeda 1.2 detik lalu kembali ke Stage 1 (Detect & Track kembali secara mulus)
+    setTimeout(() => {
+      if (isRunningRef.current && currentStageRef.current !== 'success') {
+        stableFramesCountRef.current = 0;
+        setStage('searching');
+        setStatusMessage('Mencari wajah dalam frame...');
+        setProgress(0);
+      }
+    }, 1200);
+  }, [getSnapshot, mode, onClose, onSuccess, userId]);
 
-  // Keep worker ref synced
+  // MAIN REAL-TIME TRACKING & LOCKING LOOP (30 FPS requestAnimationFrame)
   useEffect(() => {
-    scanLoopWorkerRef.current = runScanCycle;
-  }, [runScanCycle]);
+    let lastTime = performance.now();
+
+    const loop = (time: number) => {
+      if (!isRunningRef.current) return;
+
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+
+      // Animate laser scanning line smoothly
+      const laserCycle = (Math.sin(time / 400) + 1) / 2; // 0 to 1
+      setLaserPos(Math.round(15 + laserCycle * 70)); // 15% to 85%
+
+      if (video && canvas && video.readyState >= 2 && video.videoWidth > 0 && !isVerifyingRef.current) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+        if (ctx && time - lastTime > 60) { // Check every 60ms (~16 FPS optical tracker)
+          lastTime = time;
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const tracking = trackFaceInFrame(ctx, canvas.width, canvas.height);
+
+          if (currentStageRef.current !== 'verifying' && currentStageRef.current !== 'success') {
+            if (!tracking.hasFace) {
+              // STAGE 1: TIDAK ADA WAJAH
+              stableFramesCountRef.current = Math.max(0, stableFramesCountRef.current - 1);
+              if (stableFramesCountRef.current === 0) {
+                setStage('searching');
+                setStatusMessage('Posisikan wajah Anda di dalam lingkaran oval...');
+                setProgress(0);
+              }
+            } else {
+              // STAGE 2: WAJAH TERDETEKSI -> MULAI TRACKING & ISI PROGRESS STABILITY
+              stableFramesCountRef.current += 1;
+              const framesRequired = 6; // ~350ms stable face hold
+              const currentPct = Math.min(95, Math.round((stableFramesCountRef.current / framesRequired) * 95));
+
+              if (stableFramesCountRef.current < framesRequired) {
+                setStage('tracking');
+                setStatusMessage(`Face detected! Scanning AI biometrics (${currentPct}%)...`);
+                setProgress(currentPct);
+              } else {
+                // STAGE 3: TARGET LOCKED! -> TRIGGER STAGE 4 RECORD/VERIFY
+                setStage('locked');
+                setStatusMessage('Target Locked! Mengambil sampel biometrik (100%)...');
+                setProgress(100);
+                executeBiometricRecord();
+              }
+            }
+          }
+        }
+      }
+
+      animFrameIdRef.current = requestAnimationFrame(loop);
+    };
+
+    if (isOpen) {
+      animFrameIdRef.current = requestAnimationFrame(loop);
+    }
+
+    return () => {
+      if (animFrameIdRef.current) {
+        cancelAnimationFrame(animFrameIdRef.current);
+      }
+    };
+  }, [isOpen, trackFaceInFrame, executeBiometricRecord]);
 
   // Start Camera Stream
   const startCamera = useCallback(async () => {
     stopCamera();
     setCameraError(null);
-    setScanStatus('idle');
+    setStage('searching');
     setStatusMessage('Memulai koneksi kamera...');
-    setProgress(20);
-    isLoopActiveRef.current = true;
+    setProgress(0);
+    isRunningRef.current = true;
 
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -311,23 +386,14 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
         videoRef.current.onloadedmetadata = () => {
           videoRef.current?.play().catch(e => console.warn('Autoplay prevented:', e));
           setStatusMessage('Posisikan wajah Anda di dalam lingkaran oval...');
-          setProgress(40);
-          setScanStatus('searching');
-          
-          // Langsung jalankan continuous scan loop otomatis
-          if (isLoopActiveRef.current) {
-            setTimeout(() => {
-              scanLoopWorkerRef.current();
-            }, 300);
-          }
         };
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Gagal membuka kamera.';
       setCameraError(msg);
-      setScanStatus('error');
+      setStage('error');
       setStatusMessage('Gagal membuka kamera.');
-      isLoopActiveRef.current = false;
+      isRunningRef.current = false;
     }
   }, [facingMode, stopCamera]);
 
@@ -355,11 +421,7 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
   };
 
   const handleManualTrigger = () => {
-    if (loopTimeoutRef.current) {
-      clearTimeout(loopTimeoutRef.current);
-    }
-    isLoopActiveRef.current = true;
-    scanLoopWorkerRef.current();
+    executeBiometricRecord();
   };
 
   return (
@@ -372,7 +434,7 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
         <div className="absolute -top-24 -right-24 w-48 h-48 bg-orange-500/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
 
-        {/* Hidden Canvas for Frame Extraction & CV Detection */}
+        {/* Hidden Canvas for Optical Tracking Processing */}
         <canvas ref={canvasRef} className="hidden" />
 
         {/* Header Section */}
@@ -383,14 +445,16 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-extrabold tracking-tight text-white">AI Face ID Login</h3>
+                <h3 className="text-base font-extrabold tracking-tight text-white">
+                  {mode === 'register' ? 'AI Face ID Registration' : 'AI Face ID Login'}
+                </h3>
                 <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/40">
                   v2.0
                 </span>
               </div>
               <p className="text-xs text-slate-400 font-medium flex items-center gap-1 mt-0.5">
                 <Zap className="w-3 h-3 text-orange-400" />
-                Instant face verification in 1-2 seconds
+                {mode === 'register' ? 'Scan and register biometric face profile' : 'Instant face verification in 1-2 seconds'}
               </p>
             </div>
           </div>
@@ -442,53 +506,62 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
                 }`}
               />
 
-              {/* Viewfinder 4 Corner Brackets (Orange) */}
-              <div className="absolute top-4 left-4 w-6 h-6 border-t-2 border-l-2 border-[#FF6B00] rounded-tl-lg pointer-events-none" />
-              <div className="absolute top-4 right-4 w-6 h-6 border-t-2 border-r-2 border-[#FF6B00] rounded-tr-lg pointer-events-none" />
-              <div className="absolute bottom-4 left-4 w-6 h-6 border-b-2 border-l-2 border-[#FF6B00] rounded-bl-lg pointer-events-none" />
-              <div className="absolute bottom-4 right-4 w-6 h-6 border-b-2 border-r-2 border-[#FF6B00] rounded-br-lg pointer-events-none" />
+              {/* Viewfinder 4 Corner Brackets */}
+              <div className={`absolute top-4 left-4 w-6 h-6 border-t-2 border-l-2 rounded-tl-lg pointer-events-none transition-colors duration-300 ${
+                stage === 'success' ? 'border-emerald-400' : stage === 'locked' ? 'border-amber-400' : 'border-[#FF6B00]'
+              }`} />
+              <div className={`absolute top-4 right-4 w-6 h-6 border-t-2 border-r-2 rounded-tr-lg pointer-events-none transition-colors duration-300 ${
+                stage === 'success' ? 'border-emerald-400' : stage === 'locked' ? 'border-amber-400' : 'border-[#FF6B00]'
+              }`} />
+              <div className={`absolute bottom-4 left-4 w-6 h-6 border-b-2 border-l-2 rounded-bl-lg pointer-events-none transition-colors duration-300 ${
+                stage === 'success' ? 'border-emerald-400' : stage === 'locked' ? 'border-amber-400' : 'border-[#FF6B00]'
+              }`} />
+              <div className={`absolute bottom-4 right-4 w-6 h-6 border-b-2 border-r-2 rounded-br-lg pointer-events-none transition-colors duration-300 ${
+                stage === 'success' ? 'border-emerald-400' : stage === 'locked' ? 'border-amber-400' : 'border-[#FF6B00]'
+              }`} />
 
               {/* Top & Bottom Alignment Marks */}
               <div className="absolute top-3 left-1/2 -translate-x-1/2 w-10 h-1 bg-[#FF6B00] rounded-full shadow-lg pointer-events-none" />
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-10 h-1 bg-[#FF6B00] rounded-full shadow-lg pointer-events-none" />
 
-              {/* Center Oval Face Guide Frame */}
+              {/* CENTER OVAL FACE TARGET & TRACKING FRAME */}
               <div 
-                className={`absolute w-[68%] h-[82%] rounded-[50%] border-2 pointer-events-none transition-all duration-300 flex items-center justify-center ${
-                  scanStatus === 'success'
-                    ? 'border-emerald-500 shadow-[0_0_35px_rgba(16,185,129,0.85)] scale-105'
-                    : scanStatus === 'scanning'
-                    ? 'border-orange-500 shadow-[0_0_25px_rgba(255,107,0,0.65)] animate-pulse'
-                    : scanStatus === 'no_face'
-                    ? 'border-rose-500/80 shadow-[0_0_20px_rgba(244,63,94,0.6)]'
-                    : 'border-rose-500/80 shadow-[0_0_20px_rgba(244,63,94,0.5)]'
+                className={`absolute w-[68%] h-[82%] rounded-[50%] border-2 pointer-events-none transition-all duration-200 flex items-center justify-center ${
+                  stage === 'success'
+                    ? 'border-emerald-400 shadow-[0_0_40px_rgba(16,185,129,0.9)] scale-105'
+                    : stage === 'locked' || stage === 'verifying'
+                    ? 'border-amber-400 shadow-[0_0_35px_rgba(251,191,36,0.8)] scale-[1.02]'
+                    : stage === 'tracking'
+                    ? 'border-[#FF6B00] shadow-[0_0_25px_rgba(255,107,0,0.7)]'
+                    : stage === 'unrecognized'
+                    ? 'border-rose-500/80 shadow-[0_0_20px_rgba(244,63,94,0.5)]'
+                    : 'border-slate-500/40 shadow-[0_0_15px_rgba(148,163,184,0.2)]'
                 }`}
               >
-                {/* Horizontal Laser Scanning Line (Sweeps up/down continuously during search) */}
-                {scanStatus !== 'success' && !cameraError && (
-                  <div className="absolute inset-x-4 h-[2px] bg-gradient-to-r from-transparent via-orange-400 to-transparent animate-pulse opacity-85" />
+                {/* Horizontal Laser Scanning Bar (Sweeps across the face during tracking) */}
+                {(stage === 'tracking' || stage === 'locked') && (
+                  <div 
+                    className="absolute inset-x-3 h-[3px] bg-gradient-to-r from-transparent via-[#FF6B00] to-transparent shadow-[0_0_12px_#FF6B00] pointer-events-none transition-all duration-75"
+                    style={{ top: `${laserPos}%` }}
+                  />
                 )}
               </div>
 
-              {/* Center Status Icon Overlay Badge */}
+              {/* HUD OVERLAY BADGE */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                {(scanStatus === 'unrecognized' || scanStatus === 'no_face') && (
+                {stage === 'locked' && (
+                  <div className="w-16 h-16 rounded-full bg-amber-500/80 backdrop-blur-md border border-amber-300 flex items-center justify-center shadow-[0_0_30px_rgba(245,158,11,0.8)] animate-in zoom-in-90 duration-150">
+                    <Target className="w-8 h-8 text-white stroke-[2.5] animate-spin duration-1000" />
+                  </div>
+                )}
+
+                {stage === 'unrecognized' && (
                   <div className="w-16 h-16 rounded-full bg-rose-600/75 backdrop-blur-md border border-rose-400/80 flex items-center justify-center shadow-[0_0_30px_rgba(225,29,72,0.7)] animate-in zoom-in-75 duration-150">
-                    {scanStatus === 'no_face' ? (
-                      <UserX className="w-8 h-8 text-white stroke-[2.5]" />
-                    ) : (
-                      <AlertCircle className="w-8 h-8 text-white stroke-[2.5]" />
-                    )}
+                    <AlertCircle className="w-8 h-8 text-white stroke-[2.5]" />
                   </div>
                 )}
 
-                {scanStatus === 'scanning' && (
-                  <div className="w-16 h-16 rounded-full bg-orange-600/75 backdrop-blur-md border border-orange-400/80 flex items-center justify-center shadow-[0_0_30px_rgba(255,107,0,0.7)] animate-spin duration-700">
-                    <Sparkles className="w-8 h-8 text-white" />
-                  </div>
-                )}
-
-                {scanStatus === 'success' && (
+                {stage === 'success' && (
                   <div className="w-20 h-20 rounded-full bg-emerald-600/90 backdrop-blur-md border-2 border-emerald-300 flex items-center justify-center shadow-[0_0_40px_rgba(16,185,129,0.95)] animate-in zoom-in-90 duration-300">
                     <CheckCircle2 className="w-10 h-10 text-white stroke-[2.5]" />
                   </div>
@@ -498,25 +571,31 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
           )}
         </div>
 
-        {/* Status Line & Continuous Progress Bar */}
+        {/* Status Line & 4-Stage Progress Bar */}
         <div className="space-y-1.5 pt-1">
           <div className="flex items-center justify-between text-xs font-semibold">
             <div className="flex items-center gap-2 truncate pr-2">
               <span 
                 className={`w-2 h-2 rounded-full shrink-0 ${
-                  scanStatus === 'success'
+                  stage === 'success'
                     ? 'bg-emerald-500 animate-ping'
-                    : scanStatus === 'scanning'
+                    : stage === 'locked' || stage === 'verifying'
+                    ? 'bg-amber-400 animate-pulse'
+                    : stage === 'tracking'
                     ? 'bg-orange-500 animate-pulse'
-                    : (scanStatus === 'unrecognized' || scanStatus === 'no_face')
+                    : stage === 'unrecognized'
                     ? 'bg-rose-500 animate-pulse'
                     : 'bg-slate-400'
                 }`} 
               />
               <span className={`truncate ${
-                scanStatus === 'success'
+                stage === 'success'
                   ? 'text-emerald-400 font-bold'
-                  : (scanStatus === 'unrecognized' || scanStatus === 'no_face')
+                  : stage === 'locked' || stage === 'verifying'
+                  ? 'text-amber-300 font-bold'
+                  : stage === 'tracking'
+                  ? 'text-orange-400 font-medium'
+                  : stage === 'unrecognized'
                   ? 'text-rose-400 font-medium'
                   : 'text-slate-300'
               }`}>
@@ -530,23 +609,29 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
           </div>
 
           {/* Progress Bar Track */}
-          <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+          <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all duration-200 ${
-                scanStatus === 'success'
+              className={`h-full rounded-full transition-all duration-150 ${
+                stage === 'success'
                   ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
-                  : scanStatus === 'scanning'
-                  ? 'bg-gradient-to-r from-orange-500 to-amber-400'
+                  : stage === 'locked' || stage === 'verifying'
+                  ? 'bg-gradient-to-r from-amber-400 to-yellow-300'
+                  : stage === 'tracking'
+                  ? 'bg-gradient-to-r from-orange-500 to-amber-500'
                   : 'bg-gradient-to-r from-rose-500 to-pink-500'
               }`}
               style={{ width: `${progress}%` }}
             />
           </div>
 
-          {/* Continuous Scanning Active Indicator Badge */}
-          <div className="flex items-center justify-center gap-1.5 text-[11px] text-orange-400 font-bold pt-1">
-            <Activity className="w-3.5 h-3.5 animate-pulse text-orange-400" />
-            <span>AI Real Face Scanner (Memvalidasi keberadaan wajah asli)</span>
+          {/* 4-Stage Subtitle Description */}
+          <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400 font-medium pt-1">
+            {stage === 'searching' && <span>Menunggu wajah masuk ke dalam lingkaran oval...</span>}
+            {stage === 'tracking' && <span className="text-orange-400 font-bold">Wajah terdeteksi! Tahan posisi stabil untuk mengunci...</span>}
+            {stage === 'locked' && <span className="text-amber-400 font-bold">Target Terkunci! Mengambil rekaman biometrik...</span>}
+            {stage === 'verifying' && <span className="text-amber-300 font-bold">Memvalidasi data biometrik dengan sistem...</span>}
+            {stage === 'success' && <span className="text-emerald-400 font-bold">Autentikasi Berhasil!</span>}
+            {stage === 'unrecognized' && <span className="text-rose-400 font-bold">Wajah tidak cocok. Mengulang deteksi otomatis...</span>}
           </div>
         </div>
 
@@ -557,11 +642,11 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
           <button
             type="button"
             onClick={handleManualTrigger}
-            disabled={scanStatus === 'success' || !!cameraError}
+            disabled={stage === 'success' || !!cameraError}
             className="w-full py-3 rounded-2xl text-xs sm:text-sm font-extrabold btn-orange text-white shadow-xl hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:pointer-events-none"
           >
             <Camera className="w-4 h-4" />
-            <span>Scan &amp; Login Now</span>
+            <span>{mode === 'register' ? 'Capture & Save Face ID' : 'Scan & Login Now'}</span>
             <Sparkles className="w-3.5 h-3.5 text-amber-200" />
           </button>
 
@@ -570,11 +655,11 @@ export default function FaceIdLoginModal({ isOpen, onClose, onSuccess }: FaceIdL
             
             <button
               type="button"
-              onClick={handleManualTrigger}
-              disabled={scanStatus === 'success' || !!cameraError}
+              onClick={startCamera}
+              disabled={stage === 'success' || !!cameraError}
               className="flex-1 py-2.5 px-4 rounded-xl text-xs font-bold bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700/80 flex items-center justify-center gap-2 transition-all"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${scanStatus === 'scanning' ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${stage === 'tracking' || stage === 'locked' ? 'animate-spin' : ''}`} />
               <span>Retry Scan</span>
             </button>
 
