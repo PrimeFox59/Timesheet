@@ -330,10 +330,10 @@ export default function Home() {
                   <Clock className="w-8 h-8 text-[#FF6B00]" />
                 </div>
                 <h1 className="text-2xl font-black tracking-tight text-slate-900">
-                  Metso Commissioning
+                  Metso
                 </h1>
                 <p className="text-xs text-slate-500 font-medium">
-                  Site Timesheet & Operations Platform
+                  Commissioning Management System
                 </p>
               </div>
 
