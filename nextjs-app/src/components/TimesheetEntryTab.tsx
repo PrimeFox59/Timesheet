@@ -189,11 +189,11 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
     });
   };
 
-  // Quick action helper: Set 8h Mon-Fri
-  const fillAllWeekdays8h = () => {
+  // Quick action helper: Set 10h Mon-Sat (Sunday 0h)
+  const fillAllWorkdays10h = () => {
     setRows(prev => prev.map(r => ({
       ...r,
-      hours: (r.dayName === 'Saturday' || r.dayName === 'Sunday') ? 0 : 8
+      hours: (r.dayName === 'Sunday') ? 0 : 10
     })));
   };
 
@@ -349,10 +349,10 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
             <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
-                onClick={fillAllWeekdays8h}
-                className="text-[11px] px-2.5 py-1 rounded-lg bg-orange-100 hover:bg-orange-200 text-orange-950 border border-orange-300 font-semibold transition shadow-xs"
+                onClick={fillAllWorkdays10h}
+                className="text-[11px] px-2.5 py-1 rounded-lg bg-orange-100 hover:bg-orange-200 text-orange-950 border border-orange-300 font-semibold transition shadow-xs cursor-pointer active:scale-95"
               >
-                Fill 8h Mon-Fri
+                Fill 10h Mon-Sat
               </button>
               <button
                 type="button"
