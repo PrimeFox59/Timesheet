@@ -6,7 +6,7 @@ export function seedData() {
   if (userCount === 0) {
     console.log("Seeding initial users...");
     const insertUser = db.prepare(`
-      INSERT INTO users (id, username, password, role, grade, preferred_areas, preferred_shift, number_of_areas)
+      INSERT OR IGNORE INTO users (id, username, password, role, grade, preferred_areas, preferred_shift, number_of_areas)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
@@ -21,16 +21,20 @@ export function seedData() {
     ];
 
     for (const user of defaultUsers) {
-      insertUser.run(...user);
+      try {
+        insertUser.run(...user);
+      } catch (e) {}
     }
   } else {
     // Ensure 'prime' superuser exists
     const primeUser = db.prepare('SELECT id FROM users WHERE id = ?').get('prime');
     if (!primeUser) {
-      db.prepare(`
-        INSERT INTO users (id, username, password, role, grade, preferred_areas, preferred_shift, number_of_areas)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run('prime', 'Prime Admin', 'zzz', 'superuser', 'A', 'CMN', 'Day Shift', 2);
+      try {
+        db.prepare(`
+          INSERT OR IGNORE INTO users (id, username, password, role, grade, preferred_areas, preferred_shift, number_of_areas)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run('prime', 'Prime Admin', 'zzz', 'superuser', 'A', 'CMN', 'Day Shift', 2);
+      } catch (e) {}
     }
   }
 
