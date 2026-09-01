@@ -79,16 +79,6 @@ export default function RealtimeSocketProvider({
 
   return (
     <>
-      {/* Live Connection Badge */}
-      <div className="fixed bottom-3 right-4 z-40">
-        <div className={`px-3 py-1.5 rounded-full text-[10px] font-mono font-bold border shadow-lg backdrop-blur-md flex items-center gap-2 transition-all ${
-          connected ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40 shadow-emerald-950/20' : 'bg-slate-900/80 text-slate-400 border-slate-700'
-        }`}>
-          <span className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
-          <span>{connected ? 'REALTIME SOCKET LIVE' : 'REALTIME CONNECTING'}</span>
-        </div>
-      </div>
-
       {/* Floating Live Realtime Notification Banner */}
       {liveToast && (
         <div className="fixed top-20 right-6 z-50 animate-in slide-in-from-top-4 fade-in duration-300">
