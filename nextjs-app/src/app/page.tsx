@@ -13,25 +13,48 @@ import UserManagementTab from '@/components/UserManagementTab';
 import DatabaseManagementTab from '@/components/DatabaseManagementTab';
 import CodexTab from '@/components/CodexTab';
 import WorkhourAnalyticsTab from '@/components/WorkhourAnalyticsTab';
+import ProjectManagerTab from '@/components/ProjectManagerTab';
+import RealtimeChatWidget from '@/components/RealtimeChatWidget';
+import RightSidebarOnlineUsers from '@/components/RightSidebarOnlineUsers';
+import InteractiveAppTour from '@/components/InteractiveAppTour';
 import ProfileSettingsModal from '@/components/ProfileSettingsModal';
 import FaceIdLoginModal from '@/components/FaceIdLoginModal';
 import SuperuserTab from '@/components/SuperuserTab';
+import { useToast } from '@/components/Toast';
 import { apiUrl } from '@/lib/api';
-import { Clock, Layers, ShieldCheck, Database, Sliders, Users, Server, LogIn, Lock, User as UserIcon, AlertCircle, FileCheck, BarChart3, ScanFace, ShieldAlert } from 'lucide-react';
-
+import { 
+  Clock, 
+  Layers, 
+  ShieldCheck, 
+  Database, 
+  Sliders, 
+  Users, 
+  Server, 
+  LogIn, 
+  Lock, 
+  User as UserIcon, 
+  AlertCircle, 
+  FileCheck, 
+  BarChart3, 
+  ScanFace, 
+  ShieldAlert, 
+  FolderKanban, 
+  CheckCircle2 
+} from 'lucide-react';
 
 export default function Home() {
+  const toast = useToast();
   const [user, setUser] = useState<any>(null);
   const [isInitializing, setIsInitializing] = useState(true);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showFaceIdModal, setShowFaceIdModal] = useState(false);
-  
-  // Navigation categories: 'timesheet' | 'user_management' | 'codex' | 'audit_log' | 'database'
+  const [showAppTour, setShowAppTour] = useState(false);
+
+  // Navigation categories: 'timesheet' | 'project_manager' | 'codex' | 'user_management' | 'audit_log' | 'database' | 'superuser'
   const [activeCategory, setActiveCategory] = useState<string>('timesheet');
-  // Sub-tabs: 'timesheet_entry' | 'activity_log' | 'user_directory' | 'master_edit' | 'user_settings' | 'codex_monitoring' | 'workhour_analytics' | 'audit_log' | 'database_migration'
+  // Sub-tabs
   const [activeSubTab, setActiveSubTab] = useState<string>('timesheet_entry');
 
-  // Custom setters that automatically persist active category and sub-tab to localStorage
   const changeCategory = (cat: string) => {
     setActiveCategory(cat);
     try {
@@ -46,7 +69,7 @@ export default function Home() {
     } catch (e) {}
   };
 
-  // Master lists (Default area list: GCP, SAP, ER, SM, SC, CMN, ET)
+  // Master lists
   const [areasList, setAreasList] = useState<string[]>(['GCP', 'SAP', 'ER', 'SM', 'SC', 'CMN', 'ET']);
   const [usersList, setUsersList] = useState<any[]>([]);
 
@@ -57,6 +80,9 @@ export default function Home() {
   const [loggingIn, setLoggingIn] = useState(false);
 
   const [systemSettings, setSystemSettings] = useState<Record<string, boolean | string>>({
+    menu_project_manager: true,
+    feature_realtime_chat: true,
+    feature_online_users: true,
     enable_face_login: true,
     enable_face_registration: true,
     enable_codex_approval: true,
@@ -97,103 +123,98 @@ export default function Home() {
       const res = await fetch(apiUrl('/api/system/settings'));
       const data = await res.json();
       if (data.success && data.settings) {
-        setSystemSettings(data.settings);
+        setSystemSettings(prev => ({ ...prev, ...data.settings }));
       }
     } catch (e) {
       console.error("Failed to fetch system settings", e);
     }
   }, []);
 
-  // Restore user session AND last opened menu/tab from localStorage on initial page load (F5 refresh support)
+  // Check saved session on load
   useEffect(() => {
     try {
       const savedUser = localStorage.getItem('metso_user_session');
       if (savedUser) {
-        const parsed = JSON.parse(savedUser);
-        if (parsed && parsed.id) {
-          setUser(parsed);
-        }
+        setUser(JSON.parse(savedUser));
       }
-
-      const savedCategory = localStorage.getItem('metso_active_category');
-      const savedSubTab = localStorage.getItem('metso_active_subtab');
-
-      if (savedCategory) {
-        setActiveCategory(savedCategory);
-      }
-      if (savedSubTab) {
-        setActiveSubTab(savedSubTab);
-      }
-    } catch (e) {
-      console.error("Error restoring user session & active tab", e);
-    } finally {
-      setIsInitializing(false);
-    }
+      const savedCat = localStorage.getItem('metso_active_category');
+      if (savedCat) setActiveCategory(savedCat);
+      const savedSub = localStorage.getItem('metso_active_subtab');
+      if (savedSub) setActiveSubTab(savedSub);
+    } catch (e) {}
+    setIsInitializing(false);
 
     fetchMasterAreas();
     fetchMasterUsers();
     fetchSystemSettings();
   }, [fetchMasterAreas, fetchMasterUsers, fetchSystemSettings]);
 
-  const handleLoginSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginError('');
+  // Periodic heartbeat to track live presence
+  useEffect(() => {
+    if (!user?.id) return;
+    const sendHeartbeat = async () => {
+      try {
+        await fetch(apiUrl('/api/realtime/heartbeat'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user.id })
+        });
+      } catch (e) {}
+    };
+
+    sendHeartbeat();
+    const interval = setInterval(sendHeartbeat, 30000);
+    return () => clearInterval(interval);
+  }, [user]);
+
+  const handleLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!loginId.trim() || !loginPassword.trim()) {
+      setLoginError('User ID and Password are required');
+      return;
+    }
     setLoggingIn(true);
+    setLoginError('');
 
     try {
       const res = await fetch(apiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: loginId.trim(), password: loginPassword })
+        body: JSON.stringify({ id: loginId.trim(), password: loginPassword })
       });
-
-
       const data = await res.json();
-
       if (data.success && data.user) {
         setUser(data.user);
-        localStorage.setItem('metso_user_session', JSON.stringify(data.user));
-        
-        // Restore last saved tab or default to timesheet_entry
-        const savedCategory = localStorage.getItem('metso_active_category') || 'timesheet';
-        const savedSubTab = localStorage.getItem('metso_active_subtab') || 'timesheet_entry';
-
-        setActiveCategory(savedCategory);
-        setActiveSubTab(savedSubTab);
+        try {
+          localStorage.setItem('metso_user_session', JSON.stringify(data.user));
+        } catch (e) {}
+        toast.success(`Welcome back, ${data.user.username}!`);
       } else {
-        setLoginError(data.error || 'Invalid credentials');
+        setLoginError(data.message || data.error || 'Invalid credentials');
       }
     } catch (err: any) {
-      setLoginError('Network error logging in');
+      setLoginError('Server connection failed');
     } finally {
       setLoggingIn(false);
     }
   };
 
-  const handleFaceLoginSuccess = (authenticatedUser: any) => {
-    setUser(authenticatedUser);
-    localStorage.setItem('metso_user_session', JSON.stringify(authenticatedUser));
-    const savedCategory = localStorage.getItem('metso_active_category') || 'timesheet';
-    const savedSubTab = localStorage.getItem('metso_active_subtab') || 'timesheet_entry';
-    setActiveCategory(savedCategory);
-    setActiveSubTab(savedSubTab);
-  };
-
   const handleLogout = () => {
     setUser(null);
-    localStorage.removeItem('metso_user_session');
-    setLoginId('');
-    setLoginPassword('');
-    changeCategory('timesheet');
-    changeSubTab('timesheet_entry');
+    try {
+      localStorage.removeItem('metso_user_session');
+    } catch (e) {}
+    toast.info('Logged out successfully');
   };
 
   const handleUpdateUserSession = (updatedUser: any) => {
     setUser(updatedUser);
-    localStorage.setItem('metso_user_session', JSON.stringify(updatedUser));
+    try {
+      localStorage.setItem('metso_user_session', JSON.stringify(updatedUser));
+    } catch (e) {}
+    fetchMasterUsers();
   };
 
-  // Role permissions: Only account 'prime' (or role 'superuser') is Superuser with 100% open access!
   const isSuperUser = user?.id?.toLowerCase() === 'prime' || user?.role?.toLowerCase() === 'superuser';
   const isSiteAdmin = user?.role === 'Site Admin' || user?.role?.toLowerCase()?.includes('admin') || isSuperUser;
   const isDirector = user?.role?.includes('Director') || user?.role?.toLowerCase()?.includes('director') || isSiteAdmin;
@@ -214,15 +235,16 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      
+    <div className="min-h-screen flex flex-col relative bg-slate-50">
+
       <Navbar
         user={user}
         onLogout={handleLogout}
         onOpenProfileSettings={() => setShowProfileModal(true)}
+        onOpenAppTour={() => setShowAppTour(true)}
       />
 
-      {/* Realtime Socket RTC Provider (In-app SSE stream) */}
+      {/* Realtime Socket SSE Provider */}
       <RealtimeSocketProvider
         onTimesheetUpdated={() => {
           fetchMasterUsers();
@@ -236,14 +258,45 @@ export default function Home() {
       />
 
       {user && (
-        <Sidebar
-          user={user}
-          systemSettings={systemSettings}
-          activeCategory={activeCategory}
-          setActiveCategory={changeCategory}
-          activeSubTab={activeSubTab}
-          setActiveSubTab={changeSubTab}
-        />
+        <>
+          <Sidebar
+            user={user}
+            systemSettings={systemSettings}
+            activeCategory={activeCategory}
+            setActiveCategory={changeCategory}
+            activeSubTab={activeSubTab}
+            setActiveSubTab={changeSubTab}
+          />
+
+          {/* Right Sidebar Live Online Users */}
+          {systemSettings?.feature_online_users !== false && (
+            <RightSidebarOnlineUsers
+              currentUser={user}
+            />
+          )}
+
+          {/* Floating Realtime Chat Widget */}
+          {systemSettings?.feature_realtime_chat !== false && (
+            <RealtimeChatWidget
+              currentUser={user}
+              usersList={usersList}
+              connected={true}
+            />
+          )}
+
+          {/* Interactive Walkthrough Tour */}
+          <InteractiveAppTour
+            user={user}
+            isOpenManual={showAppTour}
+            onCloseManual={() => setShowAppTour(false)}
+            onNavigate={(cat, sub) => {
+              changeCategory(cat);
+              changeSubTab(sub);
+            }}
+            onOpenProfileSettings={() => setShowProfileModal(true)}
+            onCloseProfileSettings={() => setShowProfileModal(false)}
+          />
+        </>
       )}
 
       <main className={`flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 transition-all duration-300 ${
@@ -255,106 +308,99 @@ export default function Home() {
           <div className="max-w-md mx-auto my-12 animate-in fade-in zoom-in-95 duration-200">
             <div className="glass-card rounded-3xl p-8 space-y-6 shadow-2xl relative overflow-hidden">
               
-              <div className="text-center py-2">
-                <img
-                  src={apiUrl("/logo.png")}
-                  alt="Metso"
-                  className="h-16 max-w-[280px] mx-auto object-contain drop-shadow-md"
-                />
+              <div className="text-center space-y-2">
+                <div className="inline-flex items-center justify-center p-3 bg-orange-50 rounded-2xl mb-1 shadow-xs border border-orange-100">
+                  <Clock className="w-8 h-8 text-[#FF6B00]" />
+                </div>
+                <h1 className="text-2xl font-black tracking-tight text-slate-900">
+                  Metso Commissioning
+                </h1>
+                <p className="text-xs text-slate-500 font-medium">
+                  Site Timesheet & Operations Platform
+                </p>
               </div>
 
-              {loginError && (
-                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                  <span>{loginError}</span>
-                </div>
-              )}
+              <form onSubmit={handleLogin} className="space-y-4">
+                {loginError && (
+                  <div className="flex items-center gap-2 p-3 text-xs bg-red-50 text-red-600 rounded-xl border border-red-200 animate-in fade-in">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{loginError}</span>
+                  </div>
+                )}
 
-              <form onSubmit={handleLoginSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
-                    <UserIcon className="w-3.5 h-3.5 text-[#FF6B00]" />
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
                     User ID
                   </label>
-                  <input
-                    type="text"
-                    value={loginId}
-                    onChange={e => setLoginId(e.target.value)}
-                    placeholder="Enter your User ID"
-                    className="w-full px-3.5 py-2.5 rounded-xl text-xs glass-input font-medium"
-                    required
-                  />
+                  <div className="relative">
+                    <UserIcon className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={loginId}
+                      onChange={(e) => setLoginId(e.target.value)}
+                      placeholder="e.g. prime or user ID"
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/20 focus:border-[#FF6B00] transition"
+                      required
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1 flex items-center gap-1.5">
-                    <Lock className="w-3.5 h-3.5 text-[#FF6B00]" />
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
                     Password
                   </label>
-                  <input
-                    type="password"
-                    value={loginPassword}
-                    onChange={e => setLoginPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    className="w-full px-3.5 py-2.5 rounded-xl text-xs glass-input font-medium"
-                    required
-                  />
+                  <div className="relative">
+                    <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="password"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#FF6B00]/20 focus:border-[#FF6B00] transition"
+                      required
+                    />
+                  </div>
                 </div>
 
                 <button
                   type="submit"
                   disabled={loggingIn}
-                  className="w-full py-3 rounded-xl text-xs font-extrabold btn-orange shadow-lg flex items-center justify-center gap-2 mt-2"
+                  className="w-full btn-orange py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-orange-500/25 active:scale-98 transition disabled:opacity-50 cursor-pointer"
                 >
                   <LogIn className="w-4 h-4" />
                   <span>{loggingIn ? 'Authenticating...' : 'Sign In'}</span>
                 </button>
               </form>
 
-              {systemSettings.enable_face_login !== false && systemSettings.feature_face_login !== false && (
-                <>
-                  <div className="relative flex py-1 items-center">
-                    <div className="flex-grow border-t border-slate-300/80"></div>
-                    <span className="flex-shrink mx-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">or biometric</span>
-                    <div className="flex-grow border-t border-slate-300/80"></div>
-                  </div>
-
+              {/* AI Neural Face ID Biometrics Trigger */}
+              {systemSettings?.enable_face_login !== false && (
+                <div className="pt-2 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => setShowFaceIdModal(true)}
-                    className="w-full py-3 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-md flex items-center justify-center gap-2.5 transition-all border border-slate-700/60 group hover:scale-[1.01]"
+                    className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center justify-center gap-2 transition active:scale-98 shadow-sm cursor-pointer"
                   >
-                    <div className="w-5 h-5 rounded-lg bg-orange-500/20 flex items-center justify-center text-[#FF6B00] group-hover:scale-110 transition-transform">
-                      <ScanFace className="w-3.5 h-3.5" />
-                    </div>
-                    <span>AI Face ID Login</span>
-                    <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30">TensorFlow</span>
+                    <ScanFace className="w-4 h-4 text-orange-400" />
+                    <span>Sign in with AI Face ID</span>
                   </button>
-                </>
+                </div>
               )}
 
             </div>
-
-            {/* AI Face ID Login Modal */}
-            <FaceIdLoginModal
-              isOpen={showFaceIdModal}
-              targetUserId={loginId ? loginId.trim() : undefined}
-              onClose={() => setShowFaceIdModal(false)}
-              onSuccess={handleFaceLoginSuccess}
-            />
           </div>
         ) : (
-          /* LOGGED IN DASHBOARD */
+          /* LOGGED IN WORKSPACE */
           <div className="space-y-6">
-            
-            {/* Sub-Tab Navigation Header Pills */}
-            <div className="glass-card rounded-2xl p-2 flex flex-wrap gap-2 shadow-sm border border-white/80">
+
+            {/* Sub-Tabs Floating Navigation Pill */}
+            <div id="tour-subtabs" className="bg-white/80 backdrop-blur-md p-1.5 rounded-2xl border border-white/90 shadow-sm inline-flex flex-wrap items-center gap-1.5 select-none">
               
               {activeCategory === 'timesheet' && (
                 <>
                   <button
+                    id="tour-subtab-timesheet"
                     onClick={() => changeSubTab('timesheet_entry')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
                       activeSubTab === 'timesheet_entry' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
                     }`}
                   >
@@ -363,8 +409,9 @@ export default function Home() {
                   </button>
 
                   <button
+                    id="tour-subtab-activity"
                     onClick={() => changeSubTab('activity_log')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
                       activeSubTab === 'activity_log' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
                     }`}
                   >
@@ -373,8 +420,9 @@ export default function Home() {
                   </button>
 
                   <button
+                    id="tour-subtab-settings"
                     onClick={() => changeSubTab('user_settings')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
                       activeSubTab === 'user_settings' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
                     }`}
                   >
@@ -384,11 +432,69 @@ export default function Home() {
                 </>
               )}
 
+              {activeCategory === 'project_manager' && (
+                <>
+                  <button
+                    onClick={() => changeSubTab('gantt_timeline')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                      activeSubTab === 'gantt_timeline' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
+                    }`}
+                  >
+                    <FolderKanban className="w-4 h-4" />
+                    <span>Gantt Chart Timeline</span>
+                  </button>
+
+                  <button
+                    onClick={() => changeSubTab('project_list')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                      activeSubTab === 'project_list' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
+                    }`}
+                  >
+                    <Layers className="w-4 h-4" />
+                    <span>Project List</span>
+                  </button>
+
+                  <button
+                    onClick={() => changeSubTab('task_delegation')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                      activeSubTab === 'task_delegation' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Task Delegation</span>
+                  </button>
+                </>
+              )}
+
+              {activeCategory === 'codex' && isDirector && (
+                <>
+                  <button
+                    onClick={() => changeSubTab('codex_monitoring')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                      activeSubTab === 'codex_monitoring' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
+                    }`}
+                  >
+                    <FileCheck className="w-4 h-4" />
+                    <span>Codex Monitoring & Approval</span>
+                  </button>
+
+                  <button
+                    onClick={() => changeSubTab('workhour_analytics')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                      activeSubTab === 'workhour_analytics' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
+                    }`}
+                  >
+                    <BarChart3 className="w-4 h-4" />
+                    <span>Work Hour Analytics Dashboard</span>
+                  </button>
+                </>
+              )}
+
               {activeCategory === 'user_management' && (
                 <>
                   <button
                     onClick={() => changeSubTab('user_directory')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
                       activeSubTab === 'user_directory' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
                     }`}
                   >
@@ -399,7 +505,7 @@ export default function Home() {
                   {isSiteAdmin && (
                     <button
                       onClick={() => changeSubTab('master_edit')}
-                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
                         activeSubTab === 'master_edit' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
                       }`}
                     >
@@ -410,7 +516,7 @@ export default function Home() {
 
                   <button
                     onClick={() => changeSubTab('user_settings')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
                       activeSubTab === 'user_settings' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
                     }`}
                   >
@@ -420,34 +526,10 @@ export default function Home() {
                 </>
               )}
 
-              {activeCategory === 'codex' && isDirector && (
-                <>
-                  <button
-                    onClick={() => changeSubTab('codex_monitoring')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
-                      activeSubTab === 'codex_monitoring' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
-                    }`}
-                  >
-                    <FileCheck className="w-4 h-4" />
-                    <span>Codex Monitoring &amp; Approval</span>
-                  </button>
-
-                  <button
-                    onClick={() => changeSubTab('workhour_analytics')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
-                      activeSubTab === 'workhour_analytics' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
-                    }`}
-                  >
-                    <BarChart3 className="w-4 h-4" />
-                    <span>Work Hour Analytics Dashboard</span>
-                  </button>
-                </>
-              )}
-
               {activeCategory === 'audit_log' && isDirector && (
                 <button
                   onClick={() => changeSubTab('audit_log')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
                     activeSubTab === 'audit_log' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
                   }`}
                 >
@@ -459,7 +541,7 @@ export default function Home() {
               {activeCategory === 'database' && isDirector && (
                 <button
                   onClick={() => changeSubTab('database_migration')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
                     activeSubTab === 'database_migration' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
                   }`}
                 >
@@ -471,7 +553,7 @@ export default function Home() {
               {activeCategory === 'superuser' && isSuperUser && (
                 <button
                   onClick={() => changeSubTab('superuser_panel')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
                     activeSubTab === 'superuser_panel' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
                   }`}
                 >
@@ -482,8 +564,10 @@ export default function Home() {
 
             </div>
 
-            {/* Smooth Animated Tab Content Container */}
+            {/* Tab Content Container */}
             <div key={activeSubTab} className="animate-in fade-in zoom-in-95 duration-200 ease-out">
+              
+              {/* TIMESHEET TABS */}
               {activeSubTab === 'timesheet_entry' && (
                 <TimesheetEntryTab user={user} areasList={areasList} />
               )}
@@ -492,6 +576,17 @@ export default function Home() {
                 <ActivityLogTab currentUser={user} usersList={usersList} areasList={areasList} />
               )}
 
+              {/* PROJECT MANAGER TAB */}
+              {activeCategory === 'project_manager' && (
+                <ProjectManagerTab
+                  currentUser={user}
+                  usersList={usersList}
+                  areasList={areasList}
+                  activeSubTab={activeSubTab}
+                />
+              )}
+
+              {/* USER MANAGEMENT TABS */}
               {activeSubTab === 'user_directory' && (
                 <UserManagementTab
                   usersList={usersList}
@@ -518,6 +613,7 @@ export default function Home() {
                 />
               )}
 
+              {/* CODEX TABS */}
               {activeSubTab === 'codex_monitoring' && isDirector && (
                 <CodexTab currentUser={user} usersList={usersList} />
               )}
@@ -526,36 +622,30 @@ export default function Home() {
                 <WorkhourAnalyticsTab currentUser={user} />
               )}
 
+              {/* AUDIT LOG TAB */}
               {activeSubTab === 'audit_log' && isDirector && (
                 <AuditLogTab currentUser={user} />
               )}
 
+              {/* DATABASE TAB */}
               {activeSubTab === 'database_migration' && isDirector && (
                 <DatabaseManagementTab
                   currentUser={user}
                   onRefreshAll={async () => {
                     await fetchMasterAreas();
                     await fetchMasterUsers();
-                    const primeSession = {
-                      id: 'prime',
-                      username: 'Prime Admin',
-                      role: 'superuser',
-                      grade: 'A',
-                      preferred_areas: 'CMN',
-                      preferred_shift: 'Day Shift',
-                      number_of_areas: 2
-                    };
-                    handleUpdateUserSession(primeSession);
                   }}
                 />
               )}
 
+              {/* SUPERUSER TAB */}
               {activeSubTab === 'superuser_panel' && isSuperUser && (
                 <SuperuserTab
                   currentUser={user}
                   onSettingsChanged={setSystemSettings}
                 />
               )}
+
             </div>
 
           </div>
@@ -598,7 +688,22 @@ export default function Home() {
         </div>
       </footer>
 
-
+      {/* Face ID Login Modal */}
+      {showFaceIdModal && (
+        <FaceIdLoginModal
+          isOpen={showFaceIdModal}
+          mode="login"
+          onClose={() => setShowFaceIdModal(false)}
+          onSuccess={(loggedInUser: any) => {
+            setUser(loggedInUser);
+            try {
+              localStorage.setItem('metso_user_session', JSON.stringify(loggedInUser));
+            } catch (e) {}
+            setShowFaceIdModal(false);
+            toast.success(`Face ID verified. Welcome, ${loggedInUser.username}!`);
+          }}
+        />
+      )}
 
       {/* User Profile Settings Modal */}
       {showProfileModal && user && (

@@ -5,7 +5,6 @@ const Database = eval("require")("better-sqlite3");
 
 const dbPath = path.join(process.cwd(), 'timesheet.db');
 
-
 let db: any;
 
 try {
@@ -31,7 +30,14 @@ export function initDb() {
       grade TEXT DEFAULT 'A',
       preferred_areas TEXT DEFAULT 'CMN',
       preferred_shift TEXT DEFAULT 'Day Shift',
-      number_of_areas INTEGER DEFAULT 2
+      number_of_areas INTEGER DEFAULT 2,
+      phone TEXT DEFAULT '',
+      email TEXT DEFAULT '',
+      avatar TEXT DEFAULT '',
+      last_active TEXT DEFAULT '',
+      face_descriptor TEXT DEFAULT '',
+      face_photo TEXT DEFAULT '',
+      face_registered_at TEXT DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS presensi (
@@ -82,6 +88,74 @@ export function initDb() {
       UNIQUE(user_id, month)
     );
 
+    CREATE TABLE IF NOT EXISTS projects (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      code TEXT UNIQUE NOT NULL,
+      description TEXT DEFAULT '',
+      area TEXT DEFAULT 'CMN',
+      status TEXT DEFAULT 'In Progress',
+      priority TEXT DEFAULT 'Medium',
+      start_date TEXT NOT NULL,
+      end_date TEXT NOT NULL,
+      budget_hours REAL DEFAULT 0,
+      manager_id TEXT DEFAULT '',
+      manager_name TEXT DEFAULT '',
+      created_by TEXT DEFAULT 'admin',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS project_members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      user_id TEXT NOT NULL,
+      role TEXT DEFAULT 'member',
+      invited_by TEXT DEFAULT 'admin',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(project_id, user_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      area TEXT DEFAULT 'CMN',
+      assignee_id TEXT NOT NULL,
+      assignee_name TEXT NOT NULL,
+      delegated_by TEXT NOT NULL,
+      delegated_by_name TEXT NOT NULL,
+      start_date TEXT NOT NULL,
+      end_date TEXT NOT NULL,
+      duration_days INTEGER DEFAULT 1,
+      progress INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'To Do',
+      priority TEXT DEFAULT 'Medium',
+      estimated_hours REAL DEFAULT 0,
+      actual_hours REAL DEFAULT 0,
+      color TEXT DEFAULT '#FF6B00',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_msg_id TEXT DEFAULT '',
+      sender_id TEXT NOT NULL,
+      sender_name TEXT NOT NULL,
+      sender_role TEXT DEFAULT 'Member',
+      recipient_id TEXT NOT NULL DEFAULT 'ALL',
+      message TEXT NOT NULL,
+      read_by TEXT DEFAULT '',
+      file_url TEXT DEFAULT '',
+      file_name TEXT DEFAULT '',
+      file_size INTEGER DEFAULT 0,
+      file_type TEXT DEFAULT '',
+      timestamp TEXT NOT NULL DEFAULT (datetime('now')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS system_settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
@@ -96,10 +170,16 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_users_id ON users(id);
     CREATE INDEX IF NOT EXISTS idx_areas_name ON areas(name);
     CREATE INDEX IF NOT EXISTS idx_approvals_user_month ON approvals(user_id, month);
+    CREATE INDEX IF NOT EXISTS idx_projects_code ON projects(code);
+    CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
+    CREATE INDEX IF NOT EXISTS idx_chat_messages_recipient ON chat_messages(recipient_id);
   `);
 
   // Seed default system settings
   const defaultSettings = [
+    ['menu_project_manager', 'true', 'Tampilkan menu Project Manager di navigasi'],
+    ['feature_realtime_chat', 'true', 'Aktifkan widget Chat Tim Komisioning'],
+    ['feature_online_users', 'true', 'Aktifkan sidebar User Online & Live Presence'],
     ['enable_face_login', 'true', 'Aktifkan login biometrik AI Face ID di layar login'],
     ['enable_face_registration', 'true', 'Izinkan pendaftaran AI Face ID di profil user'],
     ['enable_codex_approval', 'true', 'Aktifkan modul Codex Monitoring & Digital Signature'],
@@ -120,68 +200,17 @@ export function initDb() {
     } catch (e) {}
   }
 
-  // Ensure missing columns are dynamically added if table already existed from older schema
-  const presensiColumns = (db.prepare("PRAGMA table_info(presensi)").all() as any[]).map(c => c.name);
-
-  if (!presensiColumns.includes('working_hours')) {
-    try { db.exec("ALTER TABLE presensi ADD COLUMN working_hours REAL DEFAULT 8;"); } catch (e) {}
-  }
-  if (!presensiColumns.includes('hours')) {
-    try { db.exec("ALTER TABLE presensi ADD COLUMN hours REAL DEFAULT 8;"); } catch (e) {}
-  }
-  if (!presensiColumns.includes('overtime')) {
-    try { db.exec("ALTER TABLE presensi ADD COLUMN overtime REAL DEFAULT 0;"); } catch (e) {}
-  }
-  if (!presensiColumns.includes('overtime_hours')) {
-    try { db.exec("ALTER TABLE presensi ADD COLUMN overtime_hours REAL DEFAULT 0;"); } catch (e) {}
-  }
-  if (!presensiColumns.includes('submission_timestamp')) {
-    try { db.exec("ALTER TABLE presensi ADD COLUMN submission_timestamp TEXT DEFAULT (datetime('now'));"); } catch (e) {}
-  }
-
-  // Dynamic migration for audit_log columns
-  const auditColumns = (db.prepare("PRAGMA table_info(audit_log)").all() as any[]).map(c => c.name);
-  if (!auditColumns.includes('description')) {
-    try { db.exec("ALTER TABLE audit_log ADD COLUMN description TEXT DEFAULT '';"); } catch (e) {}
-  }
-  if (!auditColumns.includes('details')) {
-    try { db.exec("ALTER TABLE audit_log ADD COLUMN details TEXT DEFAULT '';"); } catch (e) {}
-  }
-
-  // Dynamic migration for users columns (phone, email, avatar, face biometrics)
+  // Dynamic migration for users columns
   const userColumns = (db.prepare("PRAGMA table_info(users)").all() as any[]).map(c => c.name);
-  if (!userColumns.includes('phone')) {
-    try { db.exec("ALTER TABLE users ADD COLUMN phone TEXT DEFAULT '';"); } catch (e) {}
-  }
-  if (!userColumns.includes('email')) {
-    try { db.exec("ALTER TABLE users ADD COLUMN email TEXT DEFAULT '';"); } catch (e) {}
-  }
-  if (!userColumns.includes('avatar')) {
-    try { db.exec("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT '';"); } catch (e) {}
-  }
-  if (!userColumns.includes('face_descriptor')) {
-    try { db.exec("ALTER TABLE users ADD COLUMN face_descriptor TEXT DEFAULT '';"); } catch (e) {}
-  }
-  if (!userColumns.includes('face_photo')) {
-    try { db.exec("ALTER TABLE users ADD COLUMN face_photo TEXT DEFAULT '';"); } catch (e) {}
-  }
-  if (!userColumns.includes('face_registered_at')) {
-    try { db.exec("ALTER TABLE users ADD COLUMN face_registered_at TEXT DEFAULT '';"); } catch (e) {}
-  }
-
-  // Dynamic migration for system_settings columns
-  try {
-    const settingColumns = (db.prepare("PRAGMA table_info(system_settings)").all() as any[]).map(c => c.name);
-    if (!settingColumns.includes('description')) {
-      try { db.exec("ALTER TABLE system_settings ADD COLUMN description TEXT DEFAULT '';"); } catch (e) {}
-    }
-    if (!settingColumns.includes('updated_at')) {
-      try { db.exec("ALTER TABLE system_settings ADD COLUMN updated_at TEXT DEFAULT (datetime('now'));"); } catch (e) {}
-    }
-  } catch (e) {}
+  if (!userColumns.includes('phone')) { try { db.exec("ALTER TABLE users ADD COLUMN phone TEXT DEFAULT '';"); } catch (e) {} }
+  if (!userColumns.includes('email')) { try { db.exec("ALTER TABLE users ADD COLUMN email TEXT DEFAULT '';"); } catch (e) {} }
+  if (!userColumns.includes('avatar')) { try { db.exec("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT '';"); } catch (e) {} }
+  if (!userColumns.includes('last_active')) { try { db.exec("ALTER TABLE users ADD COLUMN last_active TEXT DEFAULT '';"); } catch (e) {} }
+  if (!userColumns.includes('face_descriptor')) { try { db.exec("ALTER TABLE users ADD COLUMN face_descriptor TEXT DEFAULT '';"); } catch (e) {} }
+  if (!userColumns.includes('face_photo')) { try { db.exec("ALTER TABLE users ADD COLUMN face_photo TEXT DEFAULT '';"); } catch (e) {} }
+  if (!userColumns.includes('face_registered_at')) { try { db.exec("ALTER TABLE users ADD COLUMN face_registered_at TEXT DEFAULT '';"); } catch (e) {} }
 }
 
-// Auto-run schema initialization on module load
 initDb();
 
 export default db;

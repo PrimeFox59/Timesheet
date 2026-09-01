@@ -1,15 +1,16 @@
 'use client';
 
 import React from 'react';
-import { LogOut, User, Shield, Clock } from 'lucide-react';
+import { LogOut, User, Shield, Clock, Compass } from 'lucide-react';
 
 interface NavbarProps {
   user: any;
   onLogout: () => void;
   onOpenProfileSettings?: () => void;
+  onOpenAppTour?: () => void;
 }
 
-export default function Navbar({ user, onLogout, onOpenProfileSettings }: NavbarProps) {
+export default function Navbar({ user, onLogout, onOpenProfileSettings, onOpenAppTour }: NavbarProps) {
   return (
     <header className="sticky top-0 z-50 glass-nav">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -44,10 +45,25 @@ export default function Navbar({ user, onLogout, onOpenProfileSettings }: Navbar
 
         {/* User Info & Actions */}
         {user && (
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
+            
+            {/* Interactive Tour Quick Launcher */}
+            {onOpenAppTour && (
+              <button
+                onClick={onOpenAppTour}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-orange-50 hover:bg-orange-100/80 text-orange-600 border border-orange-200/70 text-xs font-bold transition-all active:scale-95 shadow-2xs hover:shadow cursor-pointer"
+                title="Start Interactive App Tour"
+              >
+                <Compass className="w-3.5 h-3.5 text-[#FF6B00]" />
+                <span className="hidden md:inline">App Tour</span>
+              </button>
+            )}
+
+            {/* Profile Avatar Button */}
             <button
+              id="tour-navbar-profile"
               onClick={onOpenProfileSettings}
-              className="hidden sm:flex items-center gap-3 px-3 py-1.5 rounded-full bg-white/80 hover:bg-white border border-white/90 shadow-xs hover:shadow-md backdrop-blur-md transition-all active:scale-95 cursor-pointer text-left group"
+              className="flex items-center gap-3 px-3 py-1.5 rounded-full bg-white/80 hover:bg-white border border-white/90 shadow-xs hover:shadow-md backdrop-blur-md transition-all active:scale-95 cursor-pointer text-left group"
               title="Click to open Profile Settings"
             >
               <div className="w-7 h-7 rounded-full bg-gradient-to-br from-orange-400 to-[#FF6B00] text-white flex items-center justify-center font-black text-xs border border-white overflow-hidden shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
@@ -57,7 +73,7 @@ export default function Navbar({ user, onLogout, onOpenProfileSettings }: Navbar
                   <span>{user.username ? user.username.charAt(0).toUpperCase() : 'U'}</span>
                 )}
               </div>
-              <div className="flex flex-col text-left">
+              <div className="hidden sm:flex flex-col text-left">
                 <span className="text-xs font-bold text-slate-900 leading-tight group-hover:text-[#FF6B00] transition-colors">
                   {user.username}
                 </span>
@@ -68,13 +84,15 @@ export default function Navbar({ user, onLogout, onOpenProfileSettings }: Navbar
               </div>
             </button>
 
+            {/* Logout Button */}
             <button
               onClick={onLogout}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 text-white text-xs font-medium hover:bg-slate-800 transition-all shadow-sm hover:shadow"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 text-white text-xs font-medium hover:bg-slate-800 transition-all shadow-sm hover:shadow cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span>Logout</span>
+              <span className="hidden sm:inline">Logout</span>
             </button>
+
           </div>
         )}
 

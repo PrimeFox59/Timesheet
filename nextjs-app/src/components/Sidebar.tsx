@@ -1,12 +1,25 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Clock, Users, ShieldCheck, Layers, Database, Sliders, Server, FileCheck, BarChart3, ShieldAlert } from 'lucide-react';
+import { 
+  Clock, 
+  Users, 
+  ShieldCheck, 
+  Layers, 
+  Database, 
+  Sliders, 
+  Server, 
+  FileCheck, 
+  BarChart3, 
+  ShieldAlert, 
+  FolderKanban, 
+  CheckCircle2 
+} from 'lucide-react';
 
 interface SidebarProps {
   user: any;
   systemSettings?: Record<string, boolean | string>;
-  activeCategory: string; // 'timesheet' | 'user_management' | 'codex' | 'audit_log' | 'database' | 'superuser'
+  activeCategory: string; // 'timesheet' | 'project_manager' | 'codex' | 'user_management' | 'audit_log' | 'database' | 'superuser'
   setActiveCategory: (cat: string) => void;
   activeSubTab: string;
   setActiveSubTab: (sub: string) => void;
@@ -38,6 +51,17 @@ export default function Sidebar({
         { id: 'user_settings', label: 'User Settings', icon: Sliders }
       ]
     },
+    ...(systemSettings?.menu_project_manager !== false ? [{
+      id: 'project_manager',
+      title: 'PROJECT MANAGER',
+      desc: 'Project commissioning, Gantt timeline & task delegation',
+      icon: FolderKanban,
+      subTabs: [
+        { id: 'gantt_timeline', label: 'Gantt Chart Timeline', icon: FolderKanban },
+        { id: 'project_list', label: 'Project List', icon: Layers },
+        { id: 'task_delegation', label: 'Task Delegation', icon: CheckCircle2 }
+      ]
+    }] : []),
     ...(isDirector && systemSettings?.enable_codex_approval !== false ? [{
       id: 'codex',
       title: 'CODEX',
@@ -50,7 +74,7 @@ export default function Sidebar({
     }] : []),
     {
       id: 'user_management',
-      title: 'USER_MANAGEMENT',
+      title: 'USER MANAGEMENT',
       desc: 'User directory, master edit & profile preferences',
       icon: Users,
       subTabs: [
@@ -61,7 +85,7 @@ export default function Sidebar({
     },
     ...(isDirector && systemSettings?.enable_audit_log !== false ? [{
       id: 'audit_log',
-      title: 'AUDIT_LOG',
+      title: 'AUDIT LOG',
       desc: 'Privileged system security audit trail',
       icon: ShieldCheck,
       subTabs: [
@@ -88,9 +112,8 @@ export default function Sidebar({
     }] : [])
   ];
 
-
   return (
-    <aside className="fixed left-5 top-1/2 -translate-y-1/2 z-40 select-none">
+    <aside id="tour-sidebar" className="fixed left-5 top-1/2 -translate-y-1/2 z-40 select-none">
       {/* Translucent White Glass Pill Container */}
       <div className="bg-white/80 backdrop-blur-md border border-white/90 rounded-full p-2 flex flex-col items-center gap-3 shadow-xl shadow-slate-900/10">
         
@@ -117,11 +140,12 @@ export default function Sidebar({
                     setActiveSubTab(cat.subTabs[0].id);
                   }
                 }}
-                className={`w-11 h-11 rounded-full flex items-center justify-center transition-transform duration-150 active:scale-95 ${
+                className={`w-11 h-11 rounded-full flex items-center justify-center transition-transform duration-150 active:scale-95 cursor-pointer ${
                   isActive
                     ? 'bg-[#FF6B00] text-white shadow-md shadow-orange-500/30 ring-2 ring-orange-400/30 scale-105'
                     : 'text-slate-600 bg-white/70 hover:bg-white hover:text-slate-900 hover:scale-105 shadow-2xs border border-slate-200/60'
                 }`}
+                title={cat.title}
               >
                 <Icon className="w-5 h-5" />
               </button>
