@@ -410,16 +410,18 @@ export default function Home() {
                     <span>Timesheet Entry</span>
                   </button>
 
-                  <button
-                    id="tour-subtab-activity"
-                    onClick={() => changeSubTab('activity_log')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
-                      activeSubTab === 'activity_log' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
-                    }`}
-                  >
-                    <Layers className="w-4 h-4" />
-                    <span>Activity Log</span>
-                  </button>
+                  {(isSuperUser || systemSettings?.feature_activity_log !== false) && (
+                    <button
+                      id="tour-subtab-activity"
+                      onClick={() => changeSubTab('activity_log')}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                        activeSubTab === 'activity_log' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
+                      }`}
+                    >
+                      <Layers className="w-4 h-4" />
+                      <span>Activity Log</span>
+                    </button>
+                  )}
 
                   <button
                     id="tour-subtab-settings"
@@ -436,15 +438,17 @@ export default function Home() {
 
               {activeCategory === 'project_manager' && (
                 <>
-                  <button
-                    onClick={() => changeSubTab('gantt_timeline')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
-                      activeSubTab === 'gantt_timeline' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
-                    }`}
-                  >
-                    <FolderKanban className="w-4 h-4" />
-                    <span>Gantt Chart Timeline</span>
-                  </button>
+                  {(isSuperUser || systemSettings?.feature_gantt_chart !== false) && (
+                    <button
+                      onClick={() => changeSubTab('gantt_timeline')}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                        activeSubTab === 'gantt_timeline' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
+                      }`}
+                    >
+                      <FolderKanban className="w-4 h-4" />
+                      <span>Gantt Chart Timeline</span>
+                    </button>
+                  )}
 
                   <button
                     onClick={() => changeSubTab('project_list')}
@@ -480,15 +484,17 @@ export default function Home() {
                     <span>Codex Monitoring & Approval</span>
                   </button>
 
-                  <button
-                    onClick={() => changeSubTab('workhour_analytics')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
-                      activeSubTab === 'workhour_analytics' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
-                    }`}
-                  >
-                    <BarChart3 className="w-4 h-4" />
-                    <span>Work Hour Analytics Dashboard</span>
-                  </button>
+                  {(isSuperUser || systemSettings?.enable_workhour_analytics !== false) && (
+                    <button
+                      onClick={() => changeSubTab('workhour_analytics')}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                        activeSubTab === 'workhour_analytics' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
+                      }`}
+                    >
+                      <BarChart3 className="w-4 h-4" />
+                      <span>Work Hour Analytics Dashboard</span>
+                    </button>
+                  )}
                 </>
               )}
 
@@ -571,7 +577,7 @@ export default function Home() {
               
               {/* TIMESHEET TABS */}
               {activeSubTab === 'timesheet_entry' && (
-                <TimesheetEntryTab user={user} areasList={areasList} />
+                <TimesheetEntryTab user={user} areasList={areasList} systemSettings={systemSettings} />
               )}
 
               {activeSubTab === 'activity_log' && (

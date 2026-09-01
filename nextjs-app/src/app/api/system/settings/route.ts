@@ -5,14 +5,13 @@ const KEY_ALIASES: Record<string, string[]> = {
   enable_face_login: ['feature_face_login'],
   feature_face_login: ['enable_face_login'],
   enable_face_registration: ['feature_face_registration'],
+  feature_face_registration: ['enable_face_registration'],
   enable_codex_approval: ['menu_codex'],
   menu_codex: ['enable_codex_approval'],
   enable_audit_log: ['menu_audit_log'],
   menu_audit_log: ['enable_audit_log'],
   enable_database_migration: ['menu_database'],
-  menu_database: ['enable_database_migration'],
-  enable_realtime_socket: ['feature_realtime_chat', 'feature_online_users'],
-  feature_realtime_chat: ['enable_realtime_socket']
+  menu_database: ['enable_database_migration']
 };
 
 export async function GET() {

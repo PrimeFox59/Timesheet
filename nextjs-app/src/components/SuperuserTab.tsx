@@ -17,7 +17,15 @@ import {
   RefreshCw, 
   Sparkles, 
   Cpu, 
-  Layers
+  Layers,
+  FolderKanban,
+  MessageSquare,
+  FileSpreadsheet,
+  Zap,
+  Users,
+  History,
+  CheckCircle2,
+  Compass
 } from 'lucide-react';
 
 interface SuperuserTabProps {
@@ -30,10 +38,55 @@ interface FeatureToggleItem {
   title: string;
   desc: string;
   icon: any;
-  category: 'ai_auth' | 'modules' | 'rules';
+  category: 'navigation_modules' | 'ai_auth' | 'collaboration' | 'analytics_export' | 'rules';
 }
 
 const FEATURE_CONFIGS: FeatureToggleItem[] = [
+  // CATEGORY 1: CORE NAVIGATION MODULES
+  {
+    key: 'menu_timesheet',
+    title: 'Timesheet Core Module',
+    desc: 'Primary portal for daily work hours logging, date range selector, and activity records.',
+    icon: Clock,
+    category: 'navigation_modules'
+  },
+  {
+    key: 'menu_project_manager',
+    title: 'Project Manager Module',
+    desc: 'Commissioning project portfolio, Gantt timeline tracking, project list, and task assignment.',
+    icon: FolderKanban,
+    category: 'navigation_modules'
+  },
+  {
+    key: 'menu_codex',
+    title: 'Codex Executive Module',
+    desc: 'Director & supervisor review portal, overtime verification, and cryptographic signature approval.',
+    icon: FileCheck,
+    category: 'navigation_modules'
+  },
+  {
+    key: 'menu_user_management',
+    title: 'User Management & Directory',
+    desc: 'Master employee directory, area code configurations, password resets, and user preferences.',
+    icon: Users,
+    category: 'navigation_modules'
+  },
+  {
+    key: 'menu_audit_log',
+    title: 'System Security Audit Trail',
+    desc: 'Privileged immutable system security audit log and login/action tracking history.',
+    icon: ShieldCheck,
+    category: 'navigation_modules'
+  },
+  {
+    key: 'menu_database',
+    title: 'Database Management & Migration',
+    desc: 'Excel & Google Sheets migration tool, database backup downloads, and factory reset utilities.',
+    icon: Server,
+    category: 'navigation_modules'
+  },
+
+  // CATEGORY 2: AI BIOMETRICS & AUTHENTICATION
   {
     key: 'enable_face_login',
     title: 'AI Face ID Login Biometrics',
@@ -48,41 +101,61 @@ const FEATURE_CONFIGS: FeatureToggleItem[] = [
     icon: Sparkles,
     category: 'ai_auth'
   },
+
+  // CATEGORY 3: REAL-TIME COLLABORATION & PRESENCE
   {
-    key: 'enable_codex_approval',
-    title: 'Codex Module & Digital Signature',
-    desc: 'Enable supervisory overtime approval workflows and digital cryptographic signature verification.',
-    icon: FileCheck,
-    category: 'modules'
+    key: 'feature_realtime_chat',
+    title: 'Real-time Team Live Chat',
+    desc: 'Floating team messaging widget with direct messages, channel chats, and file attachments.',
+    icon: MessageSquare,
+    category: 'collaboration'
   },
   {
-    key: 'enable_workhour_analytics',
-    title: 'Work Hour Analytics Dashboard',
-    desc: 'Enable interactive workforce productivity charts, annual trends, and area breakdown analytics.',
-    icon: BarChart3,
-    category: 'modules'
-  },
-  {
-    key: 'enable_audit_log',
-    title: 'System Security Audit Trail',
-    desc: 'Record and display immutable security audit trails of all sensitive user activities in the system.',
-    icon: ShieldCheck,
-    category: 'modules'
-  },
-  {
-    key: 'enable_database_migration',
-    title: 'Database Backup & Excel Migration',
-    desc: 'Enable database backup downloads, factory reset utilities, and Google Sheets/Excel migration tools.',
-    icon: Server,
-    category: 'modules'
+    key: 'feature_online_users',
+    title: 'Live Online Presence Sidebar',
+    desc: 'Compact active presence widget showing online team members and instant-chat shortcuts.',
+    icon: Radio,
+    category: 'collaboration'
   },
   {
     key: 'enable_realtime_socket',
-    title: 'Real-time Live Stream & Presence Sync',
-    desc: 'Enable SSE (Server-Sent Events) live streaming for instant multi-user presence and state synchronization.',
-    icon: Radio,
-    category: 'rules'
+    title: 'SSE Live Stream & Presence Sync',
+    desc: 'Server-Sent Events (SSE) live streaming for instant multi-user presence and state synchronization.',
+    icon: Zap,
+    category: 'collaboration'
   },
+
+  // CATEGORY 4: ENTERPRISE FEATURES & ANALYTICS
+  {
+    key: 'enable_workhour_analytics',
+    title: 'Work Hour Analytics Dashboard',
+    desc: 'Interactive workforce productivity charts, annual trends, and commissioning area breakdowns.',
+    icon: BarChart3,
+    category: 'analytics_export'
+  },
+  {
+    key: 'feature_excel_export',
+    title: 'Metso Excel Template Export',
+    desc: 'Allow users to export and download the official formatted Metso Timesheet Excel workbook.',
+    icon: FileSpreadsheet,
+    category: 'analytics_export'
+  },
+  {
+    key: 'feature_gantt_chart',
+    title: 'Interactive Gantt Timeline Engine',
+    desc: 'Visual Gantt timeline for project scheduling, milestone tracking, and task delegation.',
+    icon: Layers,
+    category: 'analytics_export'
+  },
+  {
+    key: 'feature_activity_log',
+    title: 'Submission Activity History',
+    desc: 'Detailed history log of all past timesheet submissions with date filtering & summaries.',
+    icon: History,
+    category: 'analytics_export'
+  },
+
+  // CATEGORY 5: OPERATIONAL & GOVERNANCE RULES
   {
     key: 'enable_retroactive_entry',
     title: 'Retroactive Timesheet Entry',
@@ -103,13 +176,21 @@ export default function SuperuserTab({ currentUser, onSettingsChanged }: Superus
   const toast = useToast();
 
   const [settings, setSettings] = useState<Record<string, boolean | string>>({
+    menu_timesheet: true,
+    menu_project_manager: true,
+    menu_codex: true,
+    menu_user_management: true,
+    menu_audit_log: true,
+    menu_database: true,
     enable_face_login: true,
     enable_face_registration: true,
-    enable_codex_approval: true,
-    enable_workhour_analytics: true,
-    enable_audit_log: true,
-    enable_database_migration: true,
+    feature_realtime_chat: true,
+    feature_online_users: true,
     enable_realtime_socket: true,
+    enable_workhour_analytics: true,
+    feature_excel_export: true,
+    feature_gantt_chart: true,
+    feature_activity_log: true,
     enable_retroactive_entry: true,
     allow_overtime_entry: true
   });
@@ -183,6 +264,37 @@ export default function SuperuserTab({ currentUser, onSettingsChanged }: Superus
 
   const isSuperUser = currentUser?.id?.toLowerCase() === 'prime' || currentUser?.role?.toLowerCase() === 'superuser';
 
+  const categoryHeaders: Record<FeatureToggleItem['category'], { title: string; icon: any }> = {
+    navigation_modules: {
+      title: 'Core Navigation Modules & App Panels',
+      icon: Compass
+    },
+    ai_auth: {
+      title: 'AI Biometrics & Authentication Control',
+      icon: Cpu
+    },
+    collaboration: {
+      title: 'Real-time Collaboration & Live Presence',
+      icon: MessageSquare
+    },
+    analytics_export: {
+      title: 'Enterprise Features, Analytics & Data Export',
+      icon: Layers
+    },
+    rules: {
+      title: 'Operational & Timesheet Governance Rules',
+      icon: Sliders
+    }
+  };
+
+  const categoriesOrder: FeatureToggleItem['category'][] = [
+    'navigation_modules',
+    'ai_auth',
+    'collaboration',
+    'analytics_export',
+    'rules'
+  ];
+
   return (
     <div className="space-y-6 animate-in fade-in duration-200 select-none">
       
@@ -208,7 +320,7 @@ export default function SuperuserTab({ currentUser, onSettingsChanged }: Superus
                 </span>
               </div>
               <p className="text-xs text-slate-300 font-medium mt-1">
-                Global governance center &amp; operational feature switches for the METSO Timesheet System.
+                Global governance center &amp; operational feature switches for all menus and features in the METSO Platform.
               </p>
             </div>
           </div>
@@ -228,202 +340,78 @@ export default function SuperuserTab({ currentUser, onSettingsChanged }: Superus
 
       {/* Feature Toggles Sections */}
       <div className="space-y-6">
-        
-        {/* Section 1: AI & Authentication */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 px-1">
-            <div className="w-6 h-6 rounded-lg bg-orange-500/10 text-[#FF6B00] flex items-center justify-center">
-              <Cpu className="w-3.5 h-3.5" />
-            </div>
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
-              AI Biometrics &amp; Authentication Control
-            </h3>
-          </div>
+        {categoriesOrder.map(catKey => {
+          const items = FEATURE_CONFIGS.filter(f => f.category === catKey);
+          if (items.length === 0) return null;
+          const header = categoryHeaders[catKey];
+          const HeaderIcon = header.icon;
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {FEATURE_CONFIGS.filter(f => f.category === 'ai_auth').map(item => {
-              const Icon = item.icon;
-              const isEnabled = Boolean(settings[item.key]);
-              const isUpdating = updatingKey === item.key;
-
-              return (
-                <div 
-                  key={item.key}
-                  className="rounded-2xl p-4.5 bg-white border border-slate-200 shadow-sm hover:shadow-md transition flex items-start justify-between gap-4"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
-                      isEnabled ? 'bg-orange-50 text-[#FF6B00] border-orange-200' : 'bg-slate-100 text-slate-400 border-slate-200'
-                    }`}>
-                      <Icon className="w-5 h-5" />
-                    </div>
-                    <div className="space-y-0.5">
-                      <div className="text-xs font-black text-slate-900">{item.title}</div>
-                      <p className="text-[11px] text-slate-600 font-medium leading-relaxed">{item.desc}</p>
-                      <div className="pt-1.5">
-                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full font-mono ${
-                          isEnabled ? 'bg-emerald-100 text-emerald-800 border border-emerald-300/60' : 'bg-slate-100 text-slate-600 border border-slate-300/60'
-                        }`}>
-                          {isEnabled ? '● Active (ON)' : '○ Disabled (OFF)'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Toggle Switch */}
-                  <button
-                    type="button"
-                    disabled={isUpdating || !isSuperUser}
-                    onClick={() => handleToggle(item.key, isEnabled, item.title)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      isEnabled ? 'bg-[#FF6B00]' : 'bg-slate-300'
-                    } ${isUpdating ? 'opacity-50 cursor-wait' : ''}`}
-                    role="switch"
-                    aria-checked={isEnabled}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                        isEnabled ? 'translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
+          return (
+            <div key={catKey} className="space-y-3">
+              <div className="flex items-center gap-2 px-1">
+                <div className="w-6 h-6 rounded-lg bg-orange-500/10 text-[#FF6B00] flex items-center justify-center">
+                  <HeaderIcon className="w-3.5 h-3.5" />
                 </div>
-              );
-            })}
-          </div>
-        </div>
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                  {header.title}
+                </h3>
+              </div>
 
-        {/* Section 2: Enterprise Modules */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 px-1">
-            <div className="w-6 h-6 rounded-lg bg-orange-500/10 text-[#FF6B00] flex items-center justify-center">
-              <Layers className="w-3.5 h-3.5" />
-            </div>
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
-              Enterprise Feature Modules
-            </h3>
-          </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {items.map(item => {
+                  const Icon = item.icon;
+                  const isEnabled = settings[item.key] !== false;
+                  const isUpdating = updatingKey === item.key;
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {FEATURE_CONFIGS.filter(f => f.category === 'modules').map(item => {
-              const Icon = item.icon;
-              const isEnabled = Boolean(settings[item.key]);
-              const isUpdating = updatingKey === item.key;
-
-              return (
-                <div 
-                  key={item.key}
-                  className="rounded-2xl p-4.5 bg-white border border-slate-200 shadow-sm hover:shadow-md transition flex items-start justify-between gap-4"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
-                      isEnabled ? 'bg-orange-50 text-[#FF6B00] border-orange-200' : 'bg-slate-100 text-slate-400 border-slate-200'
-                    }`}>
-                      <Icon className="w-5 h-5" />
-                    </div>
-                    <div className="space-y-0.5">
-                      <div className="text-xs font-black text-slate-900">{item.title}</div>
-                      <p className="text-[11px] text-slate-600 font-medium leading-relaxed">{item.desc}</p>
-                      <div className="pt-1.5">
-                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full font-mono ${
-                          isEnabled ? 'bg-emerald-100 text-emerald-800 border border-emerald-300/60' : 'bg-slate-100 text-slate-600 border border-slate-300/60'
+                  return (
+                    <div 
+                      key={item.key}
+                      className="rounded-2xl p-4.5 bg-white border border-slate-200 shadow-sm hover:shadow-md transition flex items-start justify-between gap-4"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+                          isEnabled ? 'bg-orange-50 text-[#FF6B00] border-orange-200' : 'bg-slate-100 text-slate-400 border-slate-200'
                         }`}>
-                          {isEnabled ? '● Active (ON)' : '○ Disabled (OFF)'}
-                        </span>
+                          <Icon className="w-5 h-5" />
+                        </div>
+                        <div className="space-y-0.5">
+                          <div className="text-xs font-black text-slate-900">{item.title}</div>
+                          <p className="text-[11px] text-slate-600 font-medium leading-relaxed">{item.desc}</p>
+                          <div className="pt-1.5">
+                            <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full font-mono ${
+                              isEnabled ? 'bg-emerald-100 text-emerald-800 border border-emerald-300/60' : 'bg-slate-100 text-slate-600 border border-slate-300/60'
+                            }`}>
+                              {isEnabled ? '● Active (ON)' : '○ Disabled (OFF)'}
+                            </span>
+                          </div>
+                        </div>
                       </div>
+
+                      {/* Toggle Switch */}
+                      <button
+                        type="button"
+                        disabled={isUpdating || !isSuperUser}
+                        onClick={() => handleToggle(item.key, isEnabled, item.title)}
+                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          isEnabled ? 'bg-[#FF6B00]' : 'bg-slate-300'
+                        } ${isUpdating ? 'opacity-50 cursor-wait' : ''}`}
+                        role="switch"
+                        aria-checked={isEnabled}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                            isEnabled ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
                     </div>
-                  </div>
-
-                  {/* Toggle Switch */}
-                  <button
-                    type="button"
-                    disabled={isUpdating || !isSuperUser}
-                    onClick={() => handleToggle(item.key, isEnabled, item.title)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      isEnabled ? 'bg-[#FF6B00]' : 'bg-slate-300'
-                    } ${isUpdating ? 'opacity-50 cursor-wait' : ''}`}
-                    role="switch"
-                    aria-checked={isEnabled}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                        isEnabled ? 'translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Section 3: Operational Rules */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 px-1">
-            <div className="w-6 h-6 rounded-lg bg-orange-500/10 text-[#FF6B00] flex items-center justify-center">
-              <Sliders className="w-3.5 h-3.5" />
+                  );
+                })}
+              </div>
             </div>
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800">
-              Operational &amp; Timesheet Governance Rules
-            </h3>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {FEATURE_CONFIGS.filter(f => f.category === 'rules').map(item => {
-              const Icon = item.icon;
-              const isEnabled = Boolean(settings[item.key]);
-              const isUpdating = updatingKey === item.key;
-
-              return (
-                <div 
-                  key={item.key}
-                  className="rounded-2xl p-4.5 bg-white border border-slate-200 shadow-sm hover:shadow-md transition flex items-start justify-between gap-4"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
-                      isEnabled ? 'bg-orange-50 text-[#FF6B00] border-orange-200' : 'bg-slate-100 text-slate-400 border-slate-200'
-                    }`}>
-                      <Icon className="w-5 h-5" />
-                    </div>
-                    <div className="space-y-0.5">
-                      <div className="text-xs font-black text-slate-900">{item.title}</div>
-                      <p className="text-[11px] text-slate-600 font-medium leading-relaxed">{item.desc}</p>
-                      <div className="pt-1.5">
-                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full font-mono ${
-                          isEnabled ? 'bg-emerald-100 text-emerald-800 border border-emerald-300/60' : 'bg-slate-100 text-slate-600 border border-slate-300/60'
-                        }`}>
-                          {isEnabled ? '● Active (ON)' : '○ Disabled (OFF)'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Toggle Switch */}
-                  <button
-                    type="button"
-                    disabled={isUpdating || !isSuperUser}
-                    onClick={() => handleToggle(item.key, isEnabled, item.title)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      isEnabled ? 'bg-[#FF6B00]' : 'bg-slate-300'
-                    } ${isUpdating ? 'opacity-50 cursor-wait' : ''}`}
-                    role="switch"
-                    aria-checked={isEnabled}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                        isEnabled ? 'translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
+          );
+        })}
       </div>
 
     </div>

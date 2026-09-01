@@ -177,18 +177,23 @@ export function initDb() {
 
   // Seed default system settings
   const defaultSettings = [
-    ['menu_project_manager', 'true', 'Tampilkan menu Project Manager di navigasi'],
-    ['feature_realtime_chat', 'true', 'Aktifkan widget Chat Tim Komisioning'],
-    ['feature_online_users', 'true', 'Aktifkan sidebar User Online & Live Presence'],
-    ['enable_face_login', 'true', 'Aktifkan login biometrik AI Face ID di layar login'],
-    ['enable_face_registration', 'true', 'Izinkan pendaftaran AI Face ID di profil user'],
-    ['enable_codex_approval', 'true', 'Aktifkan modul Codex Monitoring & Digital Signature'],
-    ['enable_workhour_analytics', 'true', 'Aktifkan Dashboard Analitik Jam Kerja'],
-    ['enable_audit_log', 'true', 'Aktifkan pencatatan & pemantauan System Audit Trail'],
-    ['enable_database_migration', 'true', 'Aktifkan modul Database Backup, Restore & Excel Migration'],
-    ['enable_realtime_socket', 'true', 'Aktifkan sinkronisasi real-time SSE stream online status'],
-    ['enable_retroactive_entry', 'true', 'Izinkan pengisian absensi mundur (tanggal lewat)'],
-    ['allow_overtime_entry', 'true', 'Izinkan pengisian jam lembur karyawan']
+    ['menu_timesheet', 'true', 'Enable Timesheet Core Module in navigation'],
+    ['menu_project_manager', 'true', 'Enable Project Manager Module in navigation'],
+    ['menu_codex', 'true', 'Enable Codex Executive Module in navigation'],
+    ['menu_user_management', 'true', 'Enable User Management & Directory Module in navigation'],
+    ['menu_audit_log', 'true', 'Enable System Security Audit Trail Module in navigation'],
+    ['menu_database', 'true', 'Enable Database Management & Migration Portal in navigation'],
+    ['enable_face_login', 'true', 'Enable AI Face ID login biometrics on login portal'],
+    ['enable_face_registration', 'true', 'Allow AI Face ID registration in user profile'],
+    ['feature_realtime_chat', 'true', 'Enable Real-time Team Live Chat Widget'],
+    ['feature_online_users', 'true', 'Enable Live Online Presence Sidebar'],
+    ['enable_realtime_socket', 'true', 'Enable SSE stream live presence synchronization'],
+    ['enable_workhour_analytics', 'true', 'Enable Work Hour Analytics Dashboard'],
+    ['feature_excel_export', 'true', 'Enable Metso formatted Excel Timesheet template export'],
+    ['feature_gantt_chart', 'true', 'Enable Interactive Gantt Timeline Engine in Project Manager'],
+    ['feature_activity_log', 'true', 'Enable Submission Activity History Sub-menu in Timesheet'],
+    ['enable_retroactive_entry', 'true', 'Allow retroactive timesheet entry for past dates'],
+    ['allow_overtime_entry', 'true', 'Allow employees to enter overtime hours']
   ];
 
   for (const [k, v, desc] of defaultSettings) {

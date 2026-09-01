@@ -40,29 +40,29 @@ export default function Sidebar({
   const isDirector = user?.role?.includes('Director') || user?.role?.toLowerCase()?.includes('director') || isSiteAdmin;
 
   const categories = [
-    {
+    ...(isSuperUser || systemSettings?.menu_timesheet !== false ? [{
       id: 'timesheet',
       title: 'TIMESHEET',
       desc: 'Daily hours entry, activity log & user settings',
       icon: Clock,
       subTabs: [
-        { id: 'timesheet_entry', label: 'Input Timesheet', icon: Clock },
-        { id: 'activity_log', label: 'Activity Log', icon: Layers },
+        { id: 'timesheet_entry', label: 'Timesheet Entry', icon: Clock },
+        ...(isSuperUser || systemSettings?.feature_activity_log !== false ? [{ id: 'activity_log', label: 'Activity Log', icon: Layers }] : []),
         { id: 'user_settings', label: 'User Settings', icon: Sliders }
       ]
-    },
+    }] : []),
     ...(isSuperUser || systemSettings?.menu_project_manager !== false ? [{
       id: 'project_manager',
       title: 'PROJECT MANAGER',
       desc: 'Project commissioning, Gantt timeline & task delegation',
       icon: FolderKanban,
       subTabs: [
-        { id: 'gantt_timeline', label: 'Gantt Chart Timeline', icon: FolderKanban },
+        ...(isSuperUser || systemSettings?.feature_gantt_chart !== false ? [{ id: 'gantt_timeline', label: 'Gantt Chart Timeline', icon: FolderKanban }] : []),
         { id: 'project_list', label: 'Project List', icon: Layers },
         { id: 'task_delegation', label: 'Task Delegation', icon: CheckCircle2 }
       ]
     }] : []),
-    ...(isSuperUser || (isDirector && systemSettings?.enable_codex_approval !== false) ? [{
+    ...(isSuperUser || (isDirector && systemSettings?.menu_codex !== false && systemSettings?.enable_codex_approval !== false) ? [{
       id: 'codex',
       title: 'CODEX',
       desc: 'Workhour analytics, monitoring & digital signature approval',
@@ -72,7 +72,7 @@ export default function Sidebar({
         ...(isSuperUser || systemSettings?.enable_workhour_analytics !== false ? [{ id: 'workhour_analytics', label: 'Work Hour Analytics Dashboard', icon: BarChart3 }] : [])
       ]
     }] : []),
-    {
+    ...(isSuperUser || systemSettings?.menu_user_management !== false ? [{
       id: 'user_management',
       title: 'USER MANAGEMENT',
       desc: 'User directory, master edit & profile preferences',
@@ -82,8 +82,8 @@ export default function Sidebar({
         ...(isSiteAdmin ? [{ id: 'master_edit', label: 'Master Edit', icon: Database }] : []),
         { id: 'user_settings', label: 'User Settings', icon: Sliders }
       ]
-    },
-    ...(isSuperUser || (isDirector && systemSettings?.enable_audit_log !== false) ? [{
+    }] : []),
+    ...(isSuperUser || (isDirector && systemSettings?.menu_audit_log !== false && systemSettings?.enable_audit_log !== false) ? [{
       id: 'audit_log',
       title: 'AUDIT LOG',
       desc: 'Privileged system security audit trail',
@@ -92,7 +92,7 @@ export default function Sidebar({
         { id: 'audit_log', label: 'System Audit Log', icon: ShieldCheck }
       ]
     }] : []),
-    ...(isSuperUser || (isDirector && systemSettings?.enable_database_migration !== false) ? [{
+    ...(isSuperUser || (isDirector && systemSettings?.menu_database !== false && systemSettings?.enable_database_migration !== false) ? [{
       id: 'database',
       title: 'DATABASE',
       desc: 'Database backup, restore & Google Sheets migration',

@@ -7,6 +7,7 @@ import { apiUrl } from '@/lib/api';
 interface TimesheetEntryTabProps {
   user: any;
   areasList: string[];
+  systemSettings?: Record<string, boolean | string>;
 }
 
 interface DayRowState {
@@ -19,7 +20,7 @@ interface DayRowState {
   remark: string;
 }
 
-export default function TimesheetEntryTab({ user, areasList }: TimesheetEntryTabProps) {
+export default function TimesheetEntryTab({ user, areasList, systemSettings }: TimesheetEntryTabProps) {
   // Default date range matching Monday of current week to Sunday of current week
   const getInitialDates = () => {
     const today = new Date();
@@ -307,17 +308,19 @@ export default function TimesheetEntryTab({ user, areasList }: TimesheetEntryTab
             </div>
           </div>
 
-          <div className="shrink-0 self-end">
-            <button
-              type="button"
-              onClick={handleExportMetsoTemplate}
-              className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-2 transition"
-              title="Download filled Metso Timesheet Excel matching Timesheet_Template_v2.xlsx"
-            >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>Export Metso Excel Template</span>
-            </button>
-          </div>
+          {(user?.id?.toLowerCase() === 'prime' || user?.role?.toLowerCase() === 'superuser' || systemSettings?.feature_excel_export !== false) && (
+            <div className="shrink-0 self-end">
+              <button
+                type="button"
+                onClick={handleExportMetsoTemplate}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md flex items-center gap-2 transition"
+                title="Download filled Metso Timesheet Excel matching Timesheet_Template_v2.xlsx"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>Export Metso Excel Template</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {startDate && endDate && (
