@@ -7,8 +7,9 @@ let db: any;
 try {
   // 1. Try better-sqlite3 first
   const BetterDatabase = eval("require")("better-sqlite3");
-  db = new BetterDatabase(dbPath);
+  db = new BetterDatabase(dbPath, { timeout: 15000 });
   db.pragma('journal_mode = WAL');
+  db.pragma('busy_timeout = 15000');
   db.pragma('synchronous = NORMAL');
   db.pragma('temp_store = MEMORY');
   db.pragma('cache_size = -64000');
@@ -35,6 +36,7 @@ try {
       }
     };
     db.pragma('journal_mode = WAL');
+    db.pragma('busy_timeout = 15000');
     db.pragma('synchronous = NORMAL');
     db.pragma('temp_store = MEMORY');
   } catch (nativeErr) {
@@ -43,9 +45,13 @@ try {
   }
 }
 
+let isInitialized = false;
+
 // Initialize tables and indexes
 export function initDb() {
-  db.exec(`
+  if (isInitialized) return;
+  try {
+    db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       username TEXT NOT NULL,
@@ -199,45 +205,56 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_chat_messages_recipient ON chat_messages(recipient_id);
   `);
 
-  // Seed default system settings
-  const defaultSettings = [
-    ['menu_timesheet', 'true', 'Enable Timesheet Core Module in navigation'],
-    ['menu_project_manager', 'true', 'Enable Project Manager Module in navigation'],
-    ['menu_codex', 'true', 'Enable Codex Executive Module in navigation'],
-    ['menu_user_management', 'true', 'Enable User Management & Directory Module in navigation'],
-    ['menu_audit_log', 'true', 'Enable System Security Audit Trail Module in navigation'],
-    ['menu_database', 'true', 'Enable Database Management & Migration Portal in navigation'],
-    ['enable_face_login', 'true', 'Enable AI Face ID login biometrics on login portal'],
-    ['enable_face_registration', 'true', 'Allow AI Face ID registration in user profile'],
-    ['feature_realtime_chat', 'true', 'Enable Real-time Team Live Chat Widget'],
-    ['feature_online_users', 'true', 'Enable Live Online Presence Sidebar'],
-    ['enable_realtime_socket', 'true', 'Enable SSE stream live presence synchronization'],
-    ['enable_workhour_analytics', 'true', 'Enable Work Hour Analytics Dashboard'],
-    ['feature_excel_export', 'true', 'Enable Metso formatted Excel Timesheet template export'],
-    ['feature_gantt_chart', 'true', 'Enable Interactive Gantt Timeline Engine in Project Manager'],
-    ['feature_activity_log', 'true', 'Enable Submission Activity History Sub-menu in Timesheet'],
-    ['enable_retroactive_entry', 'true', 'Allow retroactive timesheet entry for past dates'],
-    ['allow_overtime_entry', 'true', 'Allow employees to enter overtime hours']
-  ];
+    // Seed default system settings
+    const defaultSettings = [
+      ['menu_timesheet', 'true', 'Enable Timesheet Core Module in navigation'],
+      ['menu_project_manager', 'true', 'Enable Project Manager Module in navigation'],
+      ['menu_codex', 'true', 'Enable Codex Executive Module in navigation'],
+      ['menu_user_management', 'true', 'Enable User Management & Directory Module in navigation'],
+      ['menu_audit_log', 'true', 'Enable System Security Audit Trail Module in navigation'],
+      ['menu_database', 'true', 'Enable Database Management & Migration Portal in navigation'],
+      ['enable_face_login', 'true', 'Enable AI Face ID login biometrics on login portal'],
+      ['enable_face_registration', 'true', 'Allow AI Face ID registration in user profile'],
+      ['feature_realtime_chat', 'true', 'Enable Real-time Team Live Chat Widget'],
+      ['feature_online_users', 'true', 'Enable Live Online Presence Sidebar'],
+      ['enable_realtime_socket', 'true', 'Enable SSE stream live presence synchronization'],
+      ['enable_workhour_analytics', 'true', 'Enable Work Hour Analytics Dashboard'],
+      ['feature_excel_export', 'true', 'Enable Metso formatted Excel Timesheet template export'],
+      ['feature_gantt_chart', 'true', 'Enable Interactive Gantt Timeline Engine in Project Manager'],
+      ['feature_activity_log', 'true', 'Enable Submission Activity History Sub-menu in Timesheet'],
+      ['enable_retroactive_entry', 'true', 'Allow retroactive timesheet entry for past dates'],
+      ['allow_overtime_entry', 'true', 'Allow employees to enter overtime hours']
+    ];
 
-  for (const [k, v, desc] of defaultSettings) {
+    for (const [k, v, desc] of defaultSettings) {
+      try {
+        db.prepare(`
+          INSERT OR IGNORE INTO system_settings (key, value, description, updated_at)
+          VALUES (?, ?, ?, datetime('now'))
+        `).run(k, v, desc);
+      } catch (e) {}
+    }
+
+    // Dynamic migration for users columns
     try {
-      db.prepare(`
-        INSERT OR IGNORE INTO system_settings (key, value, description, updated_at)
-        VALUES (?, ?, ?, datetime('now'))
-      `).run(k, v, desc);
+      const userColumns = (db.prepare("PRAGMA table_info(users)").all() as any[]).map(c => c.name);
+      if (!userColumns.includes('phone')) { try { db.exec("ALTER TABLE users ADD COLUMN phone TEXT DEFAULT '';"); } catch (e) {} }
+      if (!userColumns.includes('email')) { try { db.exec("ALTER TABLE users ADD COLUMN email TEXT DEFAULT '';"); } catch (e) {} }
+      if (!userColumns.includes('avatar')) { try { db.exec("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT '';"); } catch (e) {} }
+      if (!userColumns.includes('last_active')) { try { db.exec("ALTER TABLE users ADD COLUMN last_active TEXT DEFAULT '';"); } catch (e) {} }
+      if (!userColumns.includes('face_descriptor')) { try { db.exec("ALTER TABLE users ADD COLUMN face_descriptor TEXT DEFAULT '';"); } catch (e) {} }
+      if (!userColumns.includes('face_photo')) { try { db.exec("ALTER TABLE users ADD COLUMN face_photo TEXT DEFAULT '';"); } catch (e) {} }
+      if (!userColumns.includes('face_registered_at')) { try { db.exec("ALTER TABLE users ADD COLUMN face_registered_at TEXT DEFAULT '';"); } catch (e) {} }
     } catch (e) {}
-  }
 
-  // Dynamic migration for users columns
-  const userColumns = (db.prepare("PRAGMA table_info(users)").all() as any[]).map(c => c.name);
-  if (!userColumns.includes('phone')) { try { db.exec("ALTER TABLE users ADD COLUMN phone TEXT DEFAULT '';"); } catch (e) {} }
-  if (!userColumns.includes('email')) { try { db.exec("ALTER TABLE users ADD COLUMN email TEXT DEFAULT '';"); } catch (e) {} }
-  if (!userColumns.includes('avatar')) { try { db.exec("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT '';"); } catch (e) {} }
-  if (!userColumns.includes('last_active')) { try { db.exec("ALTER TABLE users ADD COLUMN last_active TEXT DEFAULT '';"); } catch (e) {} }
-  if (!userColumns.includes('face_descriptor')) { try { db.exec("ALTER TABLE users ADD COLUMN face_descriptor TEXT DEFAULT '';"); } catch (e) {} }
-  if (!userColumns.includes('face_photo')) { try { db.exec("ALTER TABLE users ADD COLUMN face_photo TEXT DEFAULT '';"); } catch (e) {} }
-  if (!userColumns.includes('face_registered_at')) { try { db.exec("ALTER TABLE users ADD COLUMN face_registered_at TEXT DEFAULT '';"); } catch (e) {} }
+    isInitialized = true;
+  } catch (e: any) {
+    if (e?.message?.includes('locked') || e?.code === 'ERR_SQLITE_ERROR') {
+      // Graceful fallback during Next.js parallel static build workers
+    } else {
+      console.warn('initDb notice:', e?.message || e);
+    }
+  }
 }
 
 initDb();
