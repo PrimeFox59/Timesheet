@@ -168,6 +168,17 @@ export function initDb() {
   if (!userColumns.includes('face_registered_at')) {
     try { db.exec("ALTER TABLE users ADD COLUMN face_registered_at TEXT DEFAULT '';"); } catch (e) {}
   }
+
+  // Dynamic migration for system_settings columns
+  try {
+    const settingColumns = (db.prepare("PRAGMA table_info(system_settings)").all() as any[]).map(c => c.name);
+    if (!settingColumns.includes('description')) {
+      try { db.exec("ALTER TABLE system_settings ADD COLUMN description TEXT DEFAULT '';"); } catch (e) {}
+    }
+    if (!settingColumns.includes('updated_at')) {
+      try { db.exec("ALTER TABLE system_settings ADD COLUMN updated_at TEXT DEFAULT (datetime('now'));"); } catch (e) {}
+    }
+  } catch (e) {}
 }
 
 // Auto-run schema initialization on module load

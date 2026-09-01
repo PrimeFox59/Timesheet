@@ -238,6 +238,7 @@ export default function Home() {
       {user && (
         <Sidebar
           user={user}
+          systemSettings={systemSettings}
           activeCategory={activeCategory}
           setActiveCategory={changeCategory}
           activeSubTab={activeSubTab}
@@ -310,7 +311,7 @@ export default function Home() {
                 </button>
               </form>
 
-              {systemSettings.enable_face_login !== false && (
+              {systemSettings.enable_face_login !== false && systemSettings.feature_face_login !== false && (
                 <>
                   <div className="relative flex py-1 items-center">
                     <div className="flex-grow border-t border-slate-300/80"></div>

@@ -6,6 +6,18 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { user_id, descriptor, image_base64 } = body;
 
+    // Check if Face Registration feature is toggled OFF by Superuser
+    try {
+      const setting = db.prepare("SELECT value FROM system_settings WHERE key = 'enable_face_registration'").get() as any;
+      if (setting && setting.value === 'false') {
+        return NextResponse.json({
+          success: false,
+          disabled: true,
+          message: 'Fitur Pendaftaran Face ID dinonaktifkan oleh Administrator.'
+        }, { status: 403 });
+      }
+    } catch (e) {}
+
     if (!user_id || !descriptor || !Array.isArray(descriptor) || descriptor.length === 0) {
       return NextResponse.json(
         { success: false, message: 'User ID dan 128-d face descriptor wajib diisi!' },

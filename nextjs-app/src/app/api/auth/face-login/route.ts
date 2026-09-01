@@ -17,6 +17,18 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { user_id, descriptor, confidence } = body;
 
+    // Check if Face Login feature is toggled OFF by Superuser
+    try {
+      const setting = db.prepare("SELECT value FROM system_settings WHERE key = 'enable_face_login'").get() as any;
+      if (setting && setting.value === 'false') {
+        return NextResponse.json({
+          success: false,
+          disabled: true,
+          message: 'Fitur AI Face ID Login dinonaktifkan oleh Administrator.'
+        }, { status: 403 });
+      }
+    } catch (e) {}
+
     const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
 
     // Case 1: Match by user_id confirmed by client-side face-api.js edge model

@@ -5,7 +5,8 @@ import { Clock, Users, ShieldCheck, Layers, Database, Sliders, Server, FileCheck
 
 interface SidebarProps {
   user: any;
-  activeCategory: string; // 'timesheet' | 'user_management' | 'codex' | 'audit_log' | 'database'
+  systemSettings?: Record<string, boolean | string>;
+  activeCategory: string; // 'timesheet' | 'user_management' | 'codex' | 'audit_log' | 'database' | 'superuser'
   setActiveCategory: (cat: string) => void;
   activeSubTab: string;
   setActiveSubTab: (sub: string) => void;
@@ -13,6 +14,7 @@ interface SidebarProps {
 
 export default function Sidebar({
   user,
+  systemSettings,
   activeCategory,
   setActiveCategory,
   activeSubTab,
@@ -36,14 +38,14 @@ export default function Sidebar({
         { id: 'user_settings', label: 'User Settings', icon: Sliders }
       ]
     },
-    ...(isDirector ? [{
+    ...(isDirector && systemSettings?.enable_codex_approval !== false ? [{
       id: 'codex',
       title: 'CODEX',
       desc: 'Workhour analytics, monitoring & digital signature approval',
       icon: FileCheck,
       subTabs: [
         { id: 'codex_monitoring', label: 'Codex Monitoring & Approval', icon: FileCheck },
-        { id: 'workhour_analytics', label: 'Work Hour Analytics Dashboard', icon: BarChart3 }
+        ...(systemSettings?.enable_workhour_analytics !== false ? [{ id: 'workhour_analytics', label: 'Work Hour Analytics Dashboard', icon: BarChart3 }] : [])
       ]
     }] : []),
     {
@@ -57,7 +59,7 @@ export default function Sidebar({
         { id: 'user_settings', label: 'User Settings', icon: Sliders }
       ]
     },
-    ...(isDirector ? [{
+    ...(isDirector && systemSettings?.enable_audit_log !== false ? [{
       id: 'audit_log',
       title: 'AUDIT_LOG',
       desc: 'Privileged system security audit trail',
@@ -66,7 +68,7 @@ export default function Sidebar({
         { id: 'audit_log', label: 'System Audit Log', icon: ShieldCheck }
       ]
     }] : []),
-    ...(isDirector ? [{
+    ...(isDirector && systemSettings?.enable_database_migration !== false ? [{
       id: 'database',
       title: 'DATABASE',
       desc: 'Database backup, restore & Google Sheets migration',

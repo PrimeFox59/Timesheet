@@ -3,6 +3,19 @@ import db from '@/lib/db';
 
 export async function GET() {
   try {
+    // Check if Face Login feature is toggled OFF by Superuser
+    try {
+      const setting = db.prepare("SELECT value FROM system_settings WHERE key = 'enable_face_login'").get() as any;
+      if (setting && setting.value === 'false') {
+        return NextResponse.json({
+          success: false,
+          disabled: true,
+          message: 'Fitur AI Face ID Login dinonaktifkan oleh Administrator.',
+          embeddings: []
+        });
+      }
+    } catch (e) {}
+
     const rows = db.prepare(`
       SELECT id, username, role, grade, preferred_areas, preferred_shift, number_of_areas, phone, email, avatar, face_descriptor, face_photo, face_registered_at
       FROM users 
