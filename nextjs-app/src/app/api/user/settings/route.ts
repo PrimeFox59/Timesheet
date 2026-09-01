@@ -50,7 +50,7 @@ export async function PUT(request: Request) {
         VALUES (?, ?, ?, ?, ?, ?)
       `).run(timestamp, user.id, user.username, 'Password Change', 'Successfully updated password.', 'Success');
 
-      const updatedUser = db.prepare('SELECT id, username, role, grade, preferred_areas, preferred_shift, number_of_areas, phone, email, avatar FROM users WHERE id = ?').get(user_id);
+      const updatedUser = db.prepare('SELECT id, username, role, grade, preferred_areas, preferred_shift, number_of_areas, phone, email, avatar, face_descriptor, face_photo, face_registered_at FROM users WHERE id = ?').get(user_id);
       return NextResponse.json({ success: true, message: 'Password updated successfully', user: updatedUser });
     }
 
@@ -82,7 +82,7 @@ export async function PUT(request: Request) {
         VALUES (?, ?, ?, ?, ?, ?)
       `).run(timestamp, user.id, user.username, 'User Settings Update', 'Updated user profile information.', 'Success');
 
-      const updatedUser = db.prepare('SELECT id, username, role, grade, preferred_areas, preferred_shift, number_of_areas, phone, email, avatar FROM users WHERE id = ?').get(user_id);
+      const updatedUser = db.prepare('SELECT id, username, role, grade, preferred_areas, preferred_shift, number_of_areas, phone, email, avatar, face_descriptor, face_photo, face_registered_at FROM users WHERE id = ?').get(user_id);
 
       return NextResponse.json({ success: true, message: 'Profile updated successfully', user: updatedUser });
     }

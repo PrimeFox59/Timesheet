@@ -1,7 +1,23 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, User, Mail, Phone, Lock, Camera, Check, AlertCircle, Shield, KeyRound, Save, Trash2, ScanFace } from 'lucide-react';
+import { 
+  X, 
+  User, 
+  Mail, 
+  Phone, 
+  Lock, 
+  Camera, 
+  Check, 
+  AlertCircle, 
+  Shield, 
+  KeyRound, 
+  Save, 
+  Trash2, 
+  ScanFace,
+  Sparkles,
+  RefreshCw
+} from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 import FaceIdLoginModal, { UserSessionData } from './FaceIdLoginModal';
 
@@ -16,6 +32,9 @@ export interface UserProfileData {
   phone?: string;
   email?: string;
   avatar?: string;
+  face_descriptor?: string;
+  face_photo?: string;
+  face_registered_at?: string;
 }
 
 interface ProfileSettingsModalProps {
@@ -25,8 +44,15 @@ interface ProfileSettingsModalProps {
 }
 
 export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: ProfileSettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<'profile' | 'security'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'face_id'>('profile');
   const [showFaceRegisterModal, setShowFaceRegisterModal] = useState(false);
+
+  // Check if face is registered
+  const hasRegisteredFace = Boolean(
+    user?.face_descriptor &&
+    user.face_descriptor !== '' &&
+    user.face_descriptor !== '[]'
+  );
 
   // Profile Form State
   const [username, setUsername] = useState(user?.username || '');
@@ -43,6 +69,34 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Handle Delete Face ID
+  const handleDeleteFaceId = async () => {
+    if (!confirm('Apakah Anda yakin ingin menghapus data biometrik Face ID Anda?')) return;
+    setLoading(true);
+    setError(null);
+    setSuccessMsg(null);
+
+    try {
+      const res = await fetch(apiUrl('/api/user/face-delete'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: user.id })
+      });
+
+      const data = await res.json();
+      if (data.success && data.user) {
+        onUpdateUser(data.user);
+        setSuccessMsg('Data Face ID berhasil dihapus.');
+      } else {
+        setError(data.message || 'Gagal menghapus Face ID');
+      }
+    } catch (err: any) {
+      setError('Error saat menghapus data Face ID: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Handle Profile Picture File Upload
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -71,11 +125,12 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
 
     try {
       const res = await fetch(apiUrl('/api/user/settings'), {
-        method: 'POST',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: user.id,
-          username,
+          action: 'update_profile',
+          new_username: username,
           email,
           phone,
           avatar
@@ -156,7 +211,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200 select-none">
       <div className="glass-card max-w-md w-full rounded-3xl p-6 space-y-5 shadow-2xl bg-white/95 border border-white/80 relative overflow-hidden">
         
         {/* Header */}
@@ -172,18 +227,18 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition"
+            className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex gap-2 p-1 bg-slate-100/80 rounded-2xl">
+        <div className="flex gap-1.5 p-1 bg-slate-100/80 rounded-2xl">
           <button
             type="button"
             onClick={() => { setActiveTab('profile'); setError(null); setSuccessMsg(null); }}
-            className={`flex-1 py-2 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-2 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'profile'
                 ? 'bg-white text-slate-800 shadow-xs'
                 : 'text-slate-500 hover:text-slate-800'
@@ -195,14 +250,31 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
           <button
             type="button"
             onClick={() => { setActiveTab('security'); setError(null); setSuccessMsg(null); }}
-            className={`flex-1 py-2 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-2 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'security'
                 ? 'bg-white text-slate-800 shadow-xs'
                 : 'text-slate-500 hover:text-slate-800'
             }`}
           >
             <Shield className="w-3.5 h-3.5" />
-            <span>Ganti Password</span>
+            <span>Password</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setActiveTab('face_id'); setError(null); setSuccessMsg(null); }}
+            className={`flex-1 py-2 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
+              activeTab === 'face_id'
+                ? 'bg-white text-slate-800 shadow-xs'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <ScanFace className="w-3.5 h-3.5 text-[#FF6B00]" />
+            <span>Face ID AI</span>
+            {hasRegisteredFace ? (
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Active" />
+            ) : (
+              <span className="text-[9px] px-1 py-0.2 rounded bg-orange-100 text-[#FF6B00] font-mono shrink-0">New</span>
+            )}
           </button>
         </div>
 
@@ -248,8 +320,8 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
               </div>
 
               <div className="space-y-0.5 flex-1">
-                <h4 className="text-xs font-bold text-slate-800">Foto Profil &amp; Face ID</h4>
-                <p className="text-[11px] text-slate-500">Upload foto profil atau pindai langsung dengan kamera AI.</p>
+                <h4 className="text-xs font-bold text-slate-800">Foto Profil Avatar</h4>
+                <p className="text-[11px] text-slate-500">Upload foto profil untuk tampilan akun Anda.</p>
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <label className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 text-[11px] font-bold hover:bg-slate-50 cursor-pointer shadow-2xs">
                     Upload Foto
@@ -261,20 +333,11 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
                     />
                   </label>
 
-                  <button
-                    type="button"
-                    onClick={() => setShowFaceRegisterModal(true)}
-                    className="px-2.5 py-1 rounded-lg bg-orange-50 border border-orange-200 text-orange-600 text-[11px] font-bold hover:bg-orange-100 transition flex items-center gap-1 shadow-2xs"
-                  >
-                    <ScanFace className="w-3.5 h-3.5" />
-                    Daftar Face ID
-                  </button>
-
                   {avatar && (
                     <button
                       type="button"
                       onClick={() => setAvatar('')}
-                      className="px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 text-[11px] font-bold hover:bg-rose-100 transition flex items-center gap-1"
+                      className="px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 text-[11px] font-bold hover:bg-rose-100 transition flex items-center gap-1 cursor-pointer"
                     >
                       <Trash2 className="w-3 h-3" />
                       Hapus
@@ -360,14 +423,14 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition"
+                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition cursor-pointer"
               >
                 Batal
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="px-5 py-2 rounded-xl btn-orange text-white text-xs font-black hover:scale-[1.02] active:scale-[0.98] transition flex items-center gap-1.5 shadow-md"
+                className="px-5 py-2 rounded-xl btn-orange text-white text-xs font-black hover:scale-[1.02] active:scale-[0.98] transition flex items-center gap-1.5 shadow-md cursor-pointer"
               >
                 <Save className="w-3.5 h-3.5" />
                 <span>{loading ? 'Saving...' : 'Simpan Profil'}</span>
@@ -437,14 +500,14 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition"
+                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition cursor-pointer"
               >
                 Batal
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="px-5 py-2 rounded-xl bg-slate-900 text-white text-xs font-black hover:bg-slate-800 transition flex items-center gap-1.5 shadow-md"
+                className="px-5 py-2 rounded-xl bg-slate-900 text-white text-xs font-black hover:bg-slate-800 transition flex items-center gap-1.5 shadow-md cursor-pointer"
               >
                 <Lock className="w-3.5 h-3.5" />
                 <span>{loading ? 'Changing...' : 'Update Password'}</span>
@@ -452,6 +515,118 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
             </div>
 
           </form>
+        )}
+
+        {/* TAB 3: FACE ID AI */}
+        {activeTab === 'face_id' && (
+          <div className="space-y-4">
+            
+            <div className="p-4 rounded-2xl bg-slate-900 text-white border border-slate-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-orange-500/20 text-[#FF6B00] border border-orange-500/30 flex items-center justify-center">
+                    <ScanFace className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <span>Face ID Biometric Login</span>
+                      <Sparkles className="w-3 h-3 text-[#FF6B00]" />
+                    </h4>
+                    <p className="text-[10px] text-slate-400">
+                      Verifikasi biometrik neural network 68 titik landmark via TensorFlow.
+                    </p>
+                  </div>
+                </div>
+
+                {hasRegisteredFace ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 flex items-center gap-1 shrink-0">
+                    <Check className="w-3 h-3" />
+                    <span>Active</span>
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 border border-slate-700 text-slate-400 shrink-0">
+                    Not Registered
+                  </span>
+                )}
+              </div>
+
+              {/* Details & Actions */}
+              {hasRegisteredFace ? (
+                <div className="pt-2 border-t border-slate-800/80 space-y-3">
+                  <div className="flex items-center gap-3 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
+                    {user?.face_photo ? (
+                      <img 
+                        src={user.face_photo} 
+                        alt="Registered Face" 
+                        className="w-12 h-12 rounded-xl object-cover border border-orange-500/40 shadow-sm"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-xl bg-orange-500/20 text-[#FF6B00] border border-orange-500/30 flex items-center justify-center font-bold">
+                        <ScanFace className="w-6 h-6" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-slate-200">Face ID Registered</div>
+                      <div className="text-[10px] text-slate-400">
+                        {user?.face_registered_at 
+                          ? `Registered on: ${user.face_registered_at.substring(0, 10)}`
+                          : '128-d Biometric Vector Active'}
+                      </div>
+                      <div className="text-[9px] font-mono text-emerald-400 mt-0.5">
+                        ✓ Siap digunakan di layar login
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowFaceRegisterModal(true)}
+                      className="flex-1 py-2 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 text-[#FF6B00] border border-orange-500/30 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Pindai Ulang Wajah</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={handleDeleteFaceId}
+                      className="px-3 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                      title="Hapus Face ID"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Hapus</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="pt-2 border-t border-slate-800/80 space-y-3">
+                  <p className="text-[11px] text-slate-300 leading-relaxed">
+                    Wajah Anda belum terdaftar. Aktifkan AI biometric face ID untuk login instan tanpa mengetik password.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowFaceRegisterModal(true)}
+                    className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#FF6B00] to-[#E05600] text-white text-xs font-black hover:from-[#E05600] hover:to-[#C04600] transition flex items-center justify-center gap-2 shadow-lg shadow-orange-950/40 cursor-pointer active:scale-98"
+                  >
+                    <ScanFace className="w-4 h-4" />
+                    <span>Daftarkan Wajah AI Sekarang</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-slate-200/80">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 transition cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
+
+          </div>
         )}
 
       </div>
@@ -463,11 +638,17 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
           mode="register"
           userId={user?.id}
           onClose={() => setShowFaceRegisterModal(false)}
-          onSuccess={(res: UserSessionData | { avatarUrl: string }) => {
-            if ('avatarUrl' in res && res.avatarUrl) {
-              setAvatar(res.avatarUrl);
-              setSuccessMsg('AI Face ID berhasil dipindai & didaftarkan!');
-              onUpdateUser({ ...user, avatar: res.avatarUrl });
+          onSuccess={(res: UserSessionData | any) => {
+            setShowFaceRegisterModal(false);
+            if (res) {
+              setSuccessMsg('✅ AI Face ID berhasil dipindai & didaftarkan!');
+              onUpdateUser({
+                ...user,
+                ...res,
+                face_descriptor: res.face_descriptor || user.face_descriptor,
+                face_photo: res.face_photo || user.face_photo,
+                face_registered_at: res.face_registered_at || user.face_registered_at
+              });
             }
           }}
         />

@@ -2,100 +2,148 @@ import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import '@/lib/seed';
 
+function euclideanDistance(arrA: number[], arrB: number[]): number {
+  if (!arrA || !arrB || arrA.length !== arrB.length || arrA.length === 0) return 1.0;
+  let sum = 0;
+  for (let i = 0; i < arrA.length; i++) {
+    const diff = arrA[i] - arrB[i];
+    sum += diff * diff;
+  }
+  return Math.sqrt(sum);
+}
+
 export async function POST(request: Request) {
   try {
-    const { image, has_face_detected, confidence, feature_vector } = await request.json();
-
-    if (!image) {
-      return NextResponse.json({ success: false, message: 'Tidak ada frame kamera yang diterima.' }, { status: 400 });
-    }
+    const body = await request.json();
+    const { user_id, descriptor, confidence } = body;
 
     const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
 
-    // 1. CRITICAL CHECK: If client computer vision didn't detect a human face in the oval frame, REJECT IMMEDIATELY!
-    if (has_face_detected === false || (confidence !== undefined && confidence < 0.5)) {
-      return NextResponse.json({
-        success: false,
-        face_detected: false,
-        message: 'Tidak ada wajah terdeteksi dalam frame. Posisikan wajah Anda tepat di dalam lingkaran oval.'
-      });
-    }
+    // Case 1: Match by user_id confirmed by client-side face-api.js edge model
+    if (user_id) {
+      const cleanId = String(user_id).trim();
+      const user = db.prepare('SELECT * FROM users WHERE LOWER(id) = LOWER(?)').get(cleanId) as any;
 
-    // Fetch registered users from database
-    const users = db.prepare(`
-      SELECT id, username, role, grade, preferred_areas, preferred_shift, number_of_areas, phone, email, avatar
-      FROM users
-    `).all() as any[];
+      if (!user) {
+        return NextResponse.json({
+          success: false,
+          message: 'Pengguna tidak ditemukan dalam database.'
+        }, { status: 404 });
+      }
 
-    if (!users || users.length === 0) {
-      return NextResponse.json({ 
-        success: false, 
-        message: 'Belum ada data user terdaftar dalam database.' 
-      }, { status: 404 });
-    }
+      // If user has face_descriptor and client sent live descriptor, double verify
+      let matchScore = confidence || 95;
+      if (user.face_descriptor && Array.isArray(descriptor) && descriptor.length > 0) {
+        try {
+          const registeredDesc = JSON.parse(user.face_descriptor);
+          const dist = euclideanDistance(descriptor, registeredDesc);
+          if (dist > 0.60) {
+            return NextResponse.json({
+              success: false,
+              message: 'Verifikasi biometrik tidak cocok dengan pemilik akun.'
+            }, { status: 401 });
+          }
+          matchScore = Math.round((1 - dist) * 100);
+        } catch (e) {}
+      }
 
-    // 2. BIOMETRIC MATCHING WITH REGISTERED USERS
-    // In production, compare feature_vector against registered user facial templates.
-    // If a user with an avatar exists, we verify their biometric profile.
-    const usersWithAvatar = users.filter(u => u.avatar && u.avatar.length > 50);
-    
-    let matchedUser = null;
-    let matchScore = 0;
-
-    if (usersWithAvatar.length > 0) {
-      // User with registered photo avatar
-      matchedUser = usersWithAvatar[0];
-      matchScore = 0.92;
-    } else {
-      // If default users are present (e.g. prime / admin), match with active face confidence
-      matchedUser = users.find(u => u.id === 'prime') || users[0];
-      matchScore = confidence || 0.88;
-    }
-
-    if (!matchedUser || matchScore < 0.70) {
-      // Audit log failed attempt
+      // Record audit log
       db.prepare(`
-        INSERT INTO audit_log (timestamp, user_id, username, action, description, status)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(timestamp, 'UNRECOGNIZED', 'Face Scanner', 'Face ID Login', 'Verifikasi wajah gagal: Wajah tidak cocok dengan data pengguna terdaftar.', 'Failed');
+        INSERT INTO audit_log (timestamp, user_id, username, action, description, details, status)
+        VALUES (?, ?, ?, 'FACE_LOGIN', 'Login via AI Face Recognition', ?, 'Success')
+      `).run(timestamp, user.id, user.username, `Match Score: ${matchScore}% via face-api.js`);
 
+      const { password, ...safeUser } = user;
       return NextResponse.json({
-        success: false,
-        face_detected: true,
-        message: 'Wajah terdeteksi tetapi belum cocok dengan akun pengguna manapun.'
+        success: true,
+        message: `Selamat datang kembali, ${user.username}! Verifikasi wajah berhasil.`,
+        confidence: matchScore,
+        user: {
+          ...safeUser,
+          phone: safeUser.phone || '',
+          email: safeUser.email || '',
+          avatar: safeUser.avatar || '',
+          face_descriptor: safeUser.face_descriptor || '',
+          face_photo: safeUser.face_photo || '',
+          face_registered_at: safeUser.face_registered_at || ''
+        }
       });
     }
 
-    // Audit log successful face authentication
-    db.prepare(`
-      INSERT INTO audit_log (timestamp, user_id, username, action, description, status)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(timestamp, matchedUser.id, matchedUser.username, 'Face ID Login', `Autentikasi AI Face ID berhasil untuk ${matchedUser.username} (${matchedUser.id}) dengan skor akurasi ${Math.round(matchScore * 100)}%.`, 'Success');
+    // Case 2: Server-side search across all registered users
+    if (Array.isArray(descriptor) && descriptor.length > 0) {
+      const users = db.prepare(`
+        SELECT * FROM users 
+        WHERE face_descriptor IS NOT NULL AND face_descriptor != '' AND face_descriptor != '[]'
+      `).all() as any[];
+
+      if (users.length === 0) {
+        return NextResponse.json({
+          success: false,
+          message: 'Belum ada akun yang mendaftarkan Face ID. Silakan login menggunakan password dan daftarkan wajah di menu Profil.'
+        }, { status: 404 });
+      }
+
+      let bestMatch: any = null;
+      let minDistance = 0.60;
+
+      for (const u of users) {
+        try {
+          const regDesc = JSON.parse(u.face_descriptor);
+          const dist = euclideanDistance(descriptor, regDesc);
+          if (dist < minDistance) {
+            minDistance = dist;
+            bestMatch = u;
+          }
+        } catch (e) {}
+      }
+
+      if (!bestMatch) {
+        db.prepare(`
+          INSERT INTO audit_log (timestamp, user_id, username, action, description, status)
+          VALUES (?, 'UNRECOGNIZED', 'Face Scanner', 'FACE_LOGIN', 'Verifikasi wajah gagal: Tidak cocok dengan data biometrik terdaftar.', 'Failed')
+        `).run(timestamp);
+
+        return NextResponse.json({
+          success: false,
+          message: 'Wajah tidak cocok dengan akun terdaftar manapun. Pastikan pencahayaan cukup dan wajah menghadap lurus ke kamera.'
+        }, { status: 401 });
+      }
+
+      const matchPercent = Math.round((1 - minDistance) * 100);
+
+      db.prepare(`
+        INSERT INTO audit_log (timestamp, user_id, username, action, description, details, status)
+        VALUES (?, ?, ?, 'FACE_LOGIN', 'Login via AI Face Recognition', ?, 'Success')
+      `).run(timestamp, bestMatch.id, bestMatch.username, `Match Score: ${matchPercent}%, Euclidean Dist: ${minDistance.toFixed(3)}`);
+
+      const { password, ...safeUser } = bestMatch;
+      return NextResponse.json({
+        success: true,
+        message: `Selamat datang, ${bestMatch.username}! Login Face ID berhasil.`,
+        confidence: matchPercent,
+        user: {
+          ...safeUser,
+          phone: safeUser.phone || '',
+          email: safeUser.email || '',
+          avatar: safeUser.avatar || '',
+          face_descriptor: safeUser.face_descriptor || '',
+          face_photo: safeUser.face_photo || '',
+          face_registered_at: safeUser.face_registered_at || ''
+        }
+      });
+    }
 
     return NextResponse.json({
-      success: true,
-      face_detected: true,
-      confidence: matchScore,
-      message: `Wajah Terverifikasi: Selamat datang, ${matchedUser.username}!`,
-      user: {
-        id: matchedUser.id,
-        username: matchedUser.username,
-        role: matchedUser.role,
-        grade: matchedUser.grade,
-        preferred_areas: matchedUser.preferred_areas,
-        preferred_shift: matchedUser.preferred_shift,
-        number_of_areas: matchedUser.number_of_areas,
-        phone: matchedUser.phone || '',
-        email: matchedUser.email || '',
-        avatar: matchedUser.avatar || ''
-      }
-    });
+      success: false,
+      message: 'Parameter autentikasi biometrik tidak lengkap.'
+    }, { status: 400 });
 
   } catch (error: any) {
     console.error('Face ID Login API Error:', error);
     return NextResponse.json({ 
       success: false, 
-      error: error.message || 'Server error saat memproses verifikasi wajah' 
+      error: error.message || 'Server error saat memproses login wajah' 
     }, { status: 500 });
   }
 }

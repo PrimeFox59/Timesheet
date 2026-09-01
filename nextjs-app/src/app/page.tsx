@@ -15,8 +15,9 @@ import CodexTab from '@/components/CodexTab';
 import WorkhourAnalyticsTab from '@/components/WorkhourAnalyticsTab';
 import ProfileSettingsModal from '@/components/ProfileSettingsModal';
 import FaceIdLoginModal from '@/components/FaceIdLoginModal';
+import SuperuserTab from '@/components/SuperuserTab';
 import { apiUrl } from '@/lib/api';
-import { Clock, Layers, ShieldCheck, Database, Sliders, Users, Server, LogIn, Lock, User as UserIcon, AlertCircle, FileCheck, BarChart3, ScanFace } from 'lucide-react';
+import { Clock, Layers, ShieldCheck, Database, Sliders, Users, Server, LogIn, Lock, User as UserIcon, AlertCircle, FileCheck, BarChart3, ScanFace, ShieldAlert } from 'lucide-react';
 
 
 export default function Home() {
@@ -55,6 +56,18 @@ export default function Home() {
   const [loginError, setLoginError] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
 
+  const [systemSettings, setSystemSettings] = useState<Record<string, boolean | string>>({
+    enable_face_login: true,
+    enable_face_registration: true,
+    enable_codex_approval: true,
+    enable_workhour_analytics: true,
+    enable_audit_log: true,
+    enable_database_migration: true,
+    enable_realtime_socket: true,
+    enable_retroactive_entry: true,
+    allow_overtime_entry: true
+  });
+
   const fetchMasterAreas = useCallback(async () => {
     try {
       const res = await fetch(apiUrl('/api/master/areas'));
@@ -76,6 +89,18 @@ export default function Home() {
       }
     } catch (e) {
       console.error("Failed to fetch users list", e);
+    }
+  }, []);
+
+  const fetchSystemSettings = useCallback(async () => {
+    try {
+      const res = await fetch(apiUrl('/api/system/settings'));
+      const data = await res.json();
+      if (data.success && data.settings) {
+        setSystemSettings(data.settings);
+      }
+    } catch (e) {
+      console.error("Failed to fetch system settings", e);
     }
   }, []);
 
@@ -107,7 +132,8 @@ export default function Home() {
 
     fetchMasterAreas();
     fetchMasterUsers();
-  }, [fetchMasterAreas, fetchMasterUsers]);
+    fetchSystemSettings();
+  }, [fetchMasterAreas, fetchMasterUsers, fetchSystemSettings]);
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -167,10 +193,10 @@ export default function Home() {
     localStorage.setItem('metso_user_session', JSON.stringify(updatedUser));
   };
 
-  // Role permissions: superuser has 100% open access to all features!
-  const isSuperUser = user?.role === 'superuser' || user?.role?.toLowerCase() === 'superuser';
-  const isSiteAdmin = user?.role === 'Site Admin' || isSuperUser;
-  const isDirector = user?.role?.includes('Director') || isSiteAdmin;
+  // Role permissions: Only account 'prime' (or role 'superuser') is Superuser with 100% open access!
+  const isSuperUser = user?.id?.toLowerCase() === 'prime' || user?.role?.toLowerCase() === 'superuser';
+  const isSiteAdmin = user?.role === 'Site Admin' || user?.role?.toLowerCase()?.includes('admin') || isSuperUser;
+  const isDirector = user?.role?.includes('Director') || user?.role?.toLowerCase()?.includes('director') || isSiteAdmin;
 
   if (isInitializing) {
     return (
@@ -284,29 +310,34 @@ export default function Home() {
                 </button>
               </form>
 
-              <div className="relative flex py-1 items-center">
-                <div className="flex-grow border-t border-slate-300/80"></div>
-                <span className="flex-shrink mx-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">or biometric</span>
-                <div className="flex-grow border-t border-slate-300/80"></div>
-              </div>
+              {systemSettings.enable_face_login !== false && (
+                <>
+                  <div className="relative flex py-1 items-center">
+                    <div className="flex-grow border-t border-slate-300/80"></div>
+                    <span className="flex-shrink mx-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">or biometric</span>
+                    <div className="flex-grow border-t border-slate-300/80"></div>
+                  </div>
 
-              <button
-                type="button"
-                onClick={() => setShowFaceIdModal(true)}
-                className="w-full py-3 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-md flex items-center justify-center gap-2.5 transition-all border border-slate-700/60 group hover:scale-[1.01]"
-              >
-                <div className="w-5 h-5 rounded-lg bg-orange-500/20 flex items-center justify-center text-[#FF6B00] group-hover:scale-110 transition-transform">
-                  <ScanFace className="w-3.5 h-3.5" />
-                </div>
-                <span>AI Face ID Login</span>
-                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30">v2.0</span>
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowFaceIdModal(true)}
+                    className="w-full py-3 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white shadow-md flex items-center justify-center gap-2.5 transition-all border border-slate-700/60 group hover:scale-[1.01]"
+                  >
+                    <div className="w-5 h-5 rounded-lg bg-orange-500/20 flex items-center justify-center text-[#FF6B00] group-hover:scale-110 transition-transform">
+                      <ScanFace className="w-3.5 h-3.5" />
+                    </div>
+                    <span>AI Face ID Login</span>
+                    <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30">TensorFlow</span>
+                  </button>
+                </>
+              )}
 
             </div>
 
             {/* AI Face ID Login Modal */}
             <FaceIdLoginModal
               isOpen={showFaceIdModal}
+              targetUserId={loginId ? loginId.trim() : undefined}
               onClose={() => setShowFaceIdModal(false)}
               onSuccess={handleFaceLoginSuccess}
             />
@@ -436,6 +467,18 @@ export default function Home() {
                 </button>
               )}
 
+              {activeCategory === 'superuser' && isSuperUser && (
+                <button
+                  onClick={() => changeSubTab('superuser_panel')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
+                    activeSubTab === 'superuser_panel' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
+                  }`}
+                >
+                  <ShieldAlert className="w-4 h-4" />
+                  <span>Superuser Feature Toggles</span>
+                </button>
+              )}
+
             </div>
 
             {/* Smooth Animated Tab Content Container */}
@@ -503,6 +546,13 @@ export default function Home() {
                     };
                     handleUpdateUserSession(primeSession);
                   }}
+                />
+              )}
+
+              {activeSubTab === 'superuser_panel' && isSuperUser && (
+                <SuperuserTab
+                  currentUser={user}
+                  onSettingsChanged={setSystemSettings}
                 />
               )}
             </div>

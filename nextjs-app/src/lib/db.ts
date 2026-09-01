@@ -82,6 +82,13 @@ export function initDb() {
       UNIQUE(user_id, month)
     );
 
+    CREATE TABLE IF NOT EXISTS system_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
     -- Create High Performance Indexes
     CREATE INDEX IF NOT EXISTS idx_presensi_user_date ON presensi(user_id, date);
     CREATE INDEX IF NOT EXISTS idx_presensi_date ON presensi(date DESC);
@@ -90,6 +97,28 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_areas_name ON areas(name);
     CREATE INDEX IF NOT EXISTS idx_approvals_user_month ON approvals(user_id, month);
   `);
+
+  // Seed default system settings
+  const defaultSettings = [
+    ['enable_face_login', 'true', 'Aktifkan login biometrik AI Face ID di layar login'],
+    ['enable_face_registration', 'true', 'Izinkan pendaftaran AI Face ID di profil user'],
+    ['enable_codex_approval', 'true', 'Aktifkan modul Codex Monitoring & Digital Signature'],
+    ['enable_workhour_analytics', 'true', 'Aktifkan Dashboard Analitik Jam Kerja'],
+    ['enable_audit_log', 'true', 'Aktifkan pencatatan & pemantauan System Audit Trail'],
+    ['enable_database_migration', 'true', 'Aktifkan modul Database Backup, Restore & Excel Migration'],
+    ['enable_realtime_socket', 'true', 'Aktifkan sinkronisasi real-time SSE stream online status'],
+    ['enable_retroactive_entry', 'true', 'Izinkan pengisian absensi mundur (tanggal lewat)'],
+    ['allow_overtime_entry', 'true', 'Izinkan pengisian jam lembur karyawan']
+  ];
+
+  for (const [k, v, desc] of defaultSettings) {
+    try {
+      db.prepare(`
+        INSERT OR IGNORE INTO system_settings (key, value, description, updated_at)
+        VALUES (?, ?, ?, datetime('now'))
+      `).run(k, v, desc);
+    } catch (e) {}
+  }
 
   // Ensure missing columns are dynamically added if table already existed from older schema
   const presensiColumns = (db.prepare("PRAGMA table_info(presensi)").all() as any[]).map(c => c.name);
@@ -119,7 +148,7 @@ export function initDb() {
     try { db.exec("ALTER TABLE audit_log ADD COLUMN details TEXT DEFAULT '';"); } catch (e) {}
   }
 
-  // Dynamic migration for users columns (phone, email, avatar)
+  // Dynamic migration for users columns (phone, email, avatar, face biometrics)
   const userColumns = (db.prepare("PRAGMA table_info(users)").all() as any[]).map(c => c.name);
   if (!userColumns.includes('phone')) {
     try { db.exec("ALTER TABLE users ADD COLUMN phone TEXT DEFAULT '';"); } catch (e) {}
@@ -129,6 +158,15 @@ export function initDb() {
   }
   if (!userColumns.includes('avatar')) {
     try { db.exec("ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT '';"); } catch (e) {}
+  }
+  if (!userColumns.includes('face_descriptor')) {
+    try { db.exec("ALTER TABLE users ADD COLUMN face_descriptor TEXT DEFAULT '';"); } catch (e) {}
+  }
+  if (!userColumns.includes('face_photo')) {
+    try { db.exec("ALTER TABLE users ADD COLUMN face_photo TEXT DEFAULT '';"); } catch (e) {}
+  }
+  if (!userColumns.includes('face_registered_at')) {
+    try { db.exec("ALTER TABLE users ADD COLUMN face_registered_at TEXT DEFAULT '';"); } catch (e) {}
   }
 }
 

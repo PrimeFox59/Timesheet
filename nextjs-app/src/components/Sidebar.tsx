@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Clock, Users, ShieldCheck, Layers, Database, Sliders, Server, FileCheck, BarChart3 } from 'lucide-react';
+import { Clock, Users, ShieldCheck, Layers, Database, Sliders, Server, FileCheck, BarChart3, ShieldAlert } from 'lucide-react';
 
 interface SidebarProps {
   user: any;
@@ -20,8 +20,9 @@ export default function Sidebar({
 }: SidebarProps) {
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
 
-  const isSiteAdmin = user?.role === 'Site Admin' || user?.role === 'superuser';
-  const isDirector = user?.role?.includes('Director') || isSiteAdmin;
+  const isSuperUser = user?.id?.toLowerCase() === 'prime' || user?.role?.toLowerCase() === 'superuser';
+  const isSiteAdmin = user?.role === 'Site Admin' || user?.role?.toLowerCase()?.includes('admin') || isSuperUser;
+  const isDirector = user?.role?.includes('Director') || user?.role?.toLowerCase()?.includes('director') || isSiteAdmin;
 
   const categories = [
     {
@@ -72,6 +73,15 @@ export default function Sidebar({
       icon: Server,
       subTabs: [
         { id: 'database_migration', label: 'Database & Migration', icon: Server }
+      ]
+    }] : []),
+    ...(isSuperUser ? [{
+      id: 'superuser',
+      title: 'SUPERUSER',
+      desc: 'Master system control, feature toggles & global configuration',
+      icon: ShieldAlert,
+      subTabs: [
+        { id: 'superuser_panel', label: 'Superuser Feature Toggles', icon: ShieldAlert }
       ]
     }] : [])
   ];

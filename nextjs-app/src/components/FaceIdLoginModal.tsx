@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiUrl } from '@/lib/api';
+import { loadFaceApiModels } from '@/lib/faceApiLoader';
 import { 
   ScanFace, 
   Camera, 
@@ -12,7 +13,10 @@ import {
   Sparkles, 
   SwitchCamera,
   Zap,
-  Target
+  ShieldCheck,
+  UserCheck,
+  Clock,
+  ChevronRight
 } from 'lucide-react';
 
 export interface UserSessionData {
@@ -26,67 +30,62 @@ export interface UserSessionData {
   phone?: string;
   email?: string;
   avatar?: string;
+  face_descriptor?: string;
+  face_photo?: string;
+  face_registered_at?: string;
 }
 
 interface FaceIdLoginModalProps {
   isOpen: boolean;
   mode?: 'login' | 'register';
-  userId?: string;
+  userId?: string; // Optional user ID for registration
+  targetUserId?: string; // Optional user ID filter for login
   onClose: () => void;
-  onSuccess: (user: UserSessionData | { avatarUrl: string }) => void;
+  onSuccess: (user: UserSessionData | any) => void;
 }
 
-type ScanStage = 'searching' | 'tracking' | 'locked' | 'verifying' | 'success' | 'unrecognized' | 'error';
-
-interface FaceTrackingData {
-  hasFace: boolean;
-  centerX: number;
-  centerY: number;
-  width: number;
-  height: number;
-  confidence: number;
+interface RegisteredEmbedding {
+  user_id: string;
+  username: string;
+  role: string;
+  grade?: string;
+  descriptor: number[];
+  photo?: string;
 }
 
 export default function FaceIdLoginModal({ 
   isOpen, 
   mode = 'login', 
   userId,
+  targetUserId,
   onClose, 
   onSuccess 
 }: FaceIdLoginModalProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  
-  // Animation & Loop refs
-  const isRunningRef = useRef<boolean>(false);
-  const animFrameIdRef = useRef<number | null>(null);
-  const stableFramesCountRef = useRef<number>(0);
-  const isVerifyingRef = useRef<boolean>(false);
-  const currentStageRef = useRef<ScanStage>('searching');
+  const loopIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const consecutiveMatchCountRef = useRef<number>(0);
+  const isSubmittingRef = useRef<boolean>(false);
 
-  // UI States
-  const [stage, setStage] = useState<ScanStage>('searching');
-  const [statusMessage, setStatusMessage] = useState<string>('Mencari wajah dalam frame...');
-  const [progress, setProgress] = useState<number>(0);
-  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  // States
+  const [isLoadingModels, setIsLoadingModels] = useState<boolean>(true);
+  const [modelError, setModelError] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [laserPos, setLaserPos] = useState<number>(50);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  
+  const [statusMessage, setStatusMessage] = useState<string>('Memuat AI Neural Models...');
+  const [registeredUsers, setRegisteredUsers] = useState<RegisteredEmbedding[]>([]);
+  const [matchedUser, setMatchedUser] = useState<RegisteredEmbedding | null>(null);
+  const [matchScore, setMatchScore] = useState<number>(0);
+  const [isCapturing, setIsCapturing] = useState<boolean>(false);
+  const [successResult, setSuccessResult] = useState<any>(null);
 
-  // Sync ref with stage
-  useEffect(() => {
-    currentStageRef.current = stage;
-  }, [stage]);
-
-  // Stop camera & cancel animation frame
+  // Stop camera and loops cleanly
   const stopCamera = useCallback(() => {
-    isRunningRef.current = false;
-    isVerifyingRef.current = false;
-    stableFramesCountRef.current = 0;
-
-    if (animFrameIdRef.current) {
-      cancelAnimationFrame(animFrameIdRef.current);
-      animFrameIdRef.current = null;
+    if (loopIntervalRef.current) {
+      clearInterval(loopIntervalRef.current);
+      loopIntervalRef.current = null;
     }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
@@ -95,276 +94,241 @@ export default function FaceIdLoginModal({
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    consecutiveMatchCountRef.current = 0;
+    isSubmittingRef.current = false;
   }, []);
 
-  // REAL-TIME OPTICAL FACE TRACKER (Canvas Image Processing)
-  const trackFaceInFrame = useCallback((ctx: CanvasRenderingContext2D, width: number, height: number): FaceTrackingData => {
-    const roiW = Math.round(width * 0.60);
-    const roiH = Math.round(height * 0.75);
-    const roiX = Math.round((width - roiW) / 2);
-    const roiY = Math.round((height - roiH) / 2);
-
-    const imgData = ctx.getImageData(roiX, roiY, roiW, roiH);
-    const pixels = imgData.data;
-
-    let skinPixels = 0;
-    let sumX = 0;
-    let sumY = 0;
-    let leftSkin = 0;
-    let rightSkin = 0;
-    let topSkin = 0;
-    let bottomSkin = 0;
-    let lumVariance = 0;
-    let lastLum = 0;
-
-    const step = 3;
-    let totalSamples = 0;
-
-    for (let y = 0; y < roiH; y += step) {
-      for (let x = 0; x < roiW; x += step) {
-        totalSamples++;
-        const idx = (y * roiW + x) * 4;
-        const r = pixels[idx];
-        const g = pixels[idx + 1];
-        const b = pixels[idx + 2];
-
-        const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-        lumVariance += Math.abs(lum - lastLum);
-        lastLum = lum;
-
-        // Standard Human Skin Chrominance Model (YCbCr + RGB)
-        const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
-        const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
-
-        const isSkin = (
-          r > 55 && g > 35 && b > 20 &&
-          r > g && (r - g) >= 10 &&
-          Math.abs(r - g) <= 140 &&
-          cb >= 75 && cb <= 135 &&
-          cr >= 130 && cr <= 180
-        );
-
-        if (isSkin) {
-          skinPixels++;
-          sumX += x;
-          sumY += y;
-
-          if (x < roiW * 0.5) leftSkin++;
-          else rightSkin++;
-
-          if (y < roiH * 0.5) topSkin++;
-          else bottomSkin++;
-        }
+  // Fetch registered descriptors from server
+  const fetchRegisteredDescriptors = useCallback(async () => {
+    try {
+      const res = await fetch(apiUrl('/api/auth/face-descriptors'));
+      const data = await res.json();
+      if (data.success && Array.isArray(data.embeddings)) {
+        setRegisteredUsers(data.embeddings);
+        return data.embeddings;
       }
+    } catch (e) {
+      console.warn('Failed to fetch face descriptors:', e);
     }
-
-    const skinRatio = skinPixels / Math.max(1, totalSamples);
-    const symmetry = rightSkin > 0 ? leftSkin / rightSkin : 0;
-    const isSymmetric = symmetry >= 0.30 && symmetry <= 3.3;
-
-    const isFaceDetected = (
-      skinRatio >= 0.15 && skinRatio <= 0.88 &&
-      topSkin > 0 && bottomSkin > 0 &&
-      isSymmetric &&
-      lumVariance > 2000
-    );
-
-    if (!isFaceDetected || skinPixels === 0) {
-      return { hasFace: false, centerX: width / 2, centerY: height / 2, width: 0, height: 0, confidence: 0 };
-    }
-
-    const avgX = roiX + (sumX / skinPixels);
-    const avgY = roiY + (sumY / skinPixels);
-
-    return {
-      hasFace: true,
-      centerX: avgX,
-      centerY: avgY,
-      width: roiW,
-      height: roiH,
-      confidence: Math.min(0.98, 0.60 + skinRatio * 0.4)
-    };
+    return [];
   }, []);
 
-  // Capture frame as Base64 JPEG
-  const getSnapshot = useCallback((): string | null => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas) return null;
-    if (video.videoWidth === 0 || video.videoHeight === 0) return null;
+  // Authenticate matched user
+  const handleAuthenticateUser = useCallback(async (target: RegisteredEmbedding, score: number) => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsCapturing(true);
+    setStatusMessage(`Memverifikasi autentikasi ${target.username}...`);
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
+    try {
+      const res = await fetch(apiUrl('/api/auth/face-login'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: target.user_id,
+          descriptor: target.descriptor,
+          confidence: score
+        })
+      });
 
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', 0.85);
-  }, []);
+      const data = await res.json();
+      if (data.success && data.user) {
+        setSuccessResult(data.user);
+        setStatusMessage(`✅ Selamat datang, ${data.user.username}!`);
+        setTimeout(() => {
+          stopCamera();
+          onSuccess(data.user);
+        }, 1200);
+      } else {
+        isSubmittingRef.current = false;
+        setIsCapturing(false);
+        setStatusMessage(data.message || 'Verifikasi biometrik gagal.');
+      }
+    } catch (err: any) {
+      isSubmittingRef.current = false;
+      setIsCapturing(false);
+      setStatusMessage('Gagal menghubungi server untuk autentikasi.');
+    }
+  }, [stopCamera, onSuccess]);
 
-  // TRIGGER STAGE 4: RECORD & VERIFY BIOMETRIC
-  const executeBiometricRecord = useCallback(async () => {
-    if (isVerifyingRef.current) return;
-    isVerifyingRef.current = true;
-
-    setStage('verifying');
-    setStatusMessage(mode === 'register' ? 'Menyimpan profil wajah biometrik...' : 'Memverifikasi kecocokan wajah...');
-    setProgress(100);
-
-    const snapshot = getSnapshot();
-    if (!snapshot) {
-      isVerifyingRef.current = false;
-      setStage('searching');
+  // Register face biometric
+  const handleRegisterFace = async () => {
+    if (!videoRef.current || !window.faceapi || isCapturing) return;
+    const activeUserId = userId || targetUserId;
+    if (!activeUserId) {
+      setStatusMessage('User ID tidak valid.');
       return;
     }
 
+    setIsCapturing(true);
+    setStatusMessage('Mengambil sampel biometrik wajah & 68 landmark...');
+
     try {
-      if (mode === 'register') {
-        // MODE REGISTER: Simpan avatar ke profil user
-        const res = await fetch(apiUrl('/api/user/settings'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            user_id: userId,
-            avatar: snapshot
-          })
-        });
-        const data = await res.json();
-        if (res.ok && data.success) {
-          setStage('success');
-          setStatusMessage('Face ID Berhasil Didaftarkan!');
-          setTimeout(() => {
-            onSuccess({ avatarUrl: snapshot });
-            onClose();
-          }, 1100);
-          return;
-        } else {
-          setStage('unrecognized');
-          setStatusMessage('Gagal menyimpan Face ID. Silakan coba lagi.');
-        }
+      const video = videoRef.current;
+      const faceapi = window.faceapi;
+
+      const detection = await faceapi
+        .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      if (!detection) {
+        setIsCapturing(false);
+        setStatusMessage('⚠️ Wajah tidak terdeteksi! Pastikan wajah tepat di depan kamera.');
+        return;
+      }
+
+      // Take snapshot photo
+      const snapCanvas = document.createElement('canvas');
+      snapCanvas.width = video.videoWidth || 320;
+      snapCanvas.height = video.videoHeight || 240;
+      const snapCtx = snapCanvas.getContext('2d');
+      if (snapCtx) {
+        snapCtx.drawImage(video, 0, 0, snapCanvas.width, snapCanvas.height);
+      }
+      const imageBase64 = snapCanvas.toDataURL('image/jpeg', 0.85);
+      const descriptorArray = Array.from(detection.descriptor);
+
+      const res = await fetch(apiUrl('/api/user/face-register'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: activeUserId,
+          descriptor: descriptorArray,
+          image_base64: imageBase64
+        })
+      });
+
+      const data = await res.json();
+      if (data.success && data.user) {
+        setSuccessResult(data.user);
+        setStatusMessage('✅ Face ID Berhasil Didaftarkan!');
+        setTimeout(() => {
+          stopCamera();
+          onSuccess(data.user);
+        }, 1200);
       } else {
-        // MODE LOGIN: Verifikasi dengan database
-        const res = await fetch(apiUrl('/api/auth/face-login'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            image: snapshot,
-            has_face_detected: true,
-            confidence: 0.95
-          })
-        });
-
-        const data = await res.json();
-
-        if (data.success && data.user) {
-          setStage('success');
-          setStatusMessage(`Wajah Dikenali: ${data.user.username}!`);
-          setTimeout(() => {
-            onSuccess(data.user);
-            onClose();
-          }, 1100);
-          return;
-        } else {
-          setStage('unrecognized');
-          setStatusMessage(data.message || 'Wajah tidak cocok dengan akun terdaftar.');
-        }
+        setIsCapturing(false);
+        setStatusMessage(data.message || 'Gagal mendaftarkan wajah.');
       }
-    } catch {
-      setStage('unrecognized');
-      setStatusMessage('Koneksi terganggu. Mengulang pemindaian...');
-    } finally {
-      isVerifyingRef.current = false;
+    } catch (err: any) {
+      setIsCapturing(false);
+      setStatusMessage('Error saat memproses pendaftaran wajah: ' + err.message);
     }
+  };
 
-    // Jeda 1.2 detik lalu kembali ke Stage 1 (Detect & Track kembali secara mulus)
-    setTimeout(() => {
-      if (isRunningRef.current && currentStageRef.current !== 'success') {
-        stableFramesCountRef.current = 0;
-        setStage('searching');
-        setStatusMessage('Mencari wajah dalam frame...');
-        setProgress(0);
-      }
-    }, 1200);
-  }, [getSnapshot, mode, onClose, onSuccess, userId]);
+  // Start Face Recognition Loop
+  const startDetectionLoop = useCallback((activeDescriptors: RegisteredEmbedding[]) => {
+    if (loopIntervalRef.current) clearInterval(loopIntervalRef.current);
 
-  // MAIN REAL-TIME TRACKING & LOCKING LOOP (30 FPS requestAnimationFrame)
-  useEffect(() => {
-    let lastTime = performance.now();
-
-    const loop = (time: number) => {
-      if (!isRunningRef.current) return;
-
+    loopIntervalRef.current = setInterval(async () => {
+      if (!videoRef.current || !canvasRef.current || !window.faceapi || isCapturing || isSubmittingRef.current) return;
       const video = videoRef.current;
       const canvas = canvasRef.current;
+      const faceapi = window.faceapi;
 
-      // Animate laser scanning line smoothly
-      const laserCycle = (Math.sin(time / 400) + 1) / 2; // 0 to 1
-      setLaserPos(Math.round(15 + laserCycle * 70)); // 15% to 85%
+      if (video.paused || video.ended || video.readyState < 2) return;
 
-      if (video && canvas && video.readyState >= 2 && video.videoWidth > 0 && !isVerifyingRef.current) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      const displaySize = { width: video.clientWidth || 320, height: video.clientHeight || 320 };
+      faceapi.matchDimensions(canvas, displaySize);
 
-        if (ctx && time - lastTime > 60) { // Check every 60ms (~16 FPS optical tracker)
-          lastTime = time;
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const tracking = trackFaceInFrame(ctx, canvas.width, canvas.height);
+      try {
+        const detection = await faceapi
+          .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
+          .withFaceLandmarks()
+          .withFaceDescriptor();
 
-          if (currentStageRef.current !== 'verifying' && currentStageRef.current !== 'success') {
-            if (!tracking.hasFace) {
-              // STAGE 1: TIDAK ADA WAJAH
-              stableFramesCountRef.current = Math.max(0, stableFramesCountRef.current - 1);
-              if (stableFramesCountRef.current === 0) {
-                setStage('searching');
-                setStatusMessage('Posisikan wajah Anda di dalam lingkaran oval...');
-                setProgress(0);
-              }
-            } else {
-              // STAGE 2: WAJAH TERDETEKSI -> MULAI TRACKING & ISI PROGRESS STABILITY
-              stableFramesCountRef.current += 1;
-              const framesRequired = 6; // ~350ms stable face hold
-              const currentPct = Math.min(95, Math.round((stableFramesCountRef.current / framesRequired) * 95));
+        const ctx = canvas.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-              if (stableFramesCountRef.current < framesRequired) {
-                setStage('tracking');
-                setStatusMessage(`Face detected! Scanning AI biometrics (${currentPct}%)...`);
-                setProgress(currentPct);
-              } else {
-                // STAGE 3: TARGET LOCKED! -> TRIGGER STAGE 4 RECORD/VERIFY
-                setStage('locked');
-                setStatusMessage('Target Locked! Mengambil sampel biometrik (100%)...');
-                setProgress(100);
-                executeBiometricRecord();
+        if (detection) {
+          const resizedDetection = faceapi.resizeResults(detection, displaySize);
+          
+          // Draw bounding box and landmarks
+          faceapi.draw.drawDetections(canvas, resizedDetection);
+          faceapi.draw.drawFaceLandmarks(canvas, resizedDetection);
+
+          if (mode === 'login') {
+            const inputDesc = detection.descriptor;
+            let bestMatch: RegisteredEmbedding | null = null;
+            let minDistance = 0.58; // Standard face-api distance threshold
+
+            const candidates = targetUserId 
+              ? activeDescriptors.filter(d => d.user_id.toLowerCase() === targetUserId.toLowerCase())
+              : activeDescriptors;
+
+            for (const candidate of candidates) {
+              const distance = faceapi.euclideanDistance(inputDesc, candidate.descriptor);
+              if (distance < minDistance) {
+                minDistance = distance;
+                bestMatch = candidate;
               }
             }
+
+            if (bestMatch) {
+              const score = Math.round((1 - minDistance) * 100);
+              setMatchedUser(bestMatch);
+              setMatchScore(score);
+              setStatusMessage(`Wajah Cocok: ${bestMatch.username} (${score}%)`);
+
+              consecutiveMatchCountRef.current += 1;
+              if (consecutiveMatchCountRef.current >= 3) {
+                // Auto-confirm after 3 consecutive stable matching frames!
+                handleAuthenticateUser(bestMatch, score);
+              }
+            } else {
+              consecutiveMatchCountRef.current = 0;
+              setMatchedUser(null);
+              setMatchScore(0);
+              setStatusMessage(
+                candidates.length === 0 
+                  ? 'Belum ada wajah terdaftar di database.' 
+                  : 'Wajah terdeteksi (Mencocokkan dengan database...)'
+              );
+            }
+          } else {
+            setStatusMessage('Wajah terdeteksi! Klik "Ambil & Simpan Wajah" untuk mendaftarkan.');
           }
+        } else {
+          consecutiveMatchCountRef.current = 0;
+          if (mode === 'login') {
+            setMatchedUser(null);
+            setMatchScore(0);
+          }
+          setStatusMessage('Posisikan wajah Anda tepat di depan kamera...');
         }
+      } catch (loopErr) {
+        // Ignore loop frame drop
       }
+    }, 200);
+  }, [mode, targetUserId, isCapturing, handleAuthenticateUser]);
 
-      animFrameIdRef.current = requestAnimationFrame(loop);
-    };
-
-    if (isOpen) {
-      animFrameIdRef.current = requestAnimationFrame(loop);
-    }
-
-    return () => {
-      if (animFrameIdRef.current) {
-        cancelAnimationFrame(animFrameIdRef.current);
-      }
-    };
-  }, [isOpen, trackFaceInFrame, executeBiometricRecord]);
-
-  // Start Camera Stream
+  // Start Camera Stream & Neural Models
   const startCamera = useCallback(async () => {
     stopCamera();
     setCameraError(null);
-    setStage('searching');
-    setStatusMessage('Memulai koneksi kamera...');
-    setProgress(0);
-    isRunningRef.current = true;
+    setModelError(null);
+    setIsLoadingModels(true);
+    setStatusMessage('Memuat AI Neural Models (face-api.js)...');
+    setSuccessResult(null);
+    setMatchedUser(null);
 
+    // 1. Load Neural Models
+    const modelsReady = await loadFaceApiModels();
+    if (!modelsReady) {
+      setIsLoadingModels(false);
+      setModelError('Gagal memuat AI Model Face Recognition. Periksa koneksi jaringan.');
+      return;
+    }
+    setIsLoadingModels(false);
+
+    // 2. Fetch descriptors if login mode
+    let descriptors: RegisteredEmbedding[] = [];
+    if (mode === 'login') {
+      descriptors = await fetchRegisteredDescriptors();
+    }
+
+    // 3. Request Camera Stream
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         throw new Error('Akses kamera tidak didukung di browser ini.');
@@ -385,31 +349,26 @@ export default function FaceIdLoginModal({
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
           videoRef.current?.play().catch(e => console.warn('Autoplay prevented:', e));
-          setStatusMessage('Posisikan wajah Anda di dalam lingkaran oval...');
+          setStatusMessage('Kamera aktif. Arahkan wajah ke layar...');
+          startDetectionLoop(descriptors);
         };
       }
-    } catch (err: unknown) {
+    } catch (err: any) {
       const msg = err instanceof Error ? err.message : 'Gagal membuka kamera.';
       setCameraError(msg);
-      setStage('error');
       setStatusMessage('Gagal membuka kamera.');
-      isRunningRef.current = false;
     }
-  }, [facingMode, stopCamera]);
+  }, [mode, facingMode, stopCamera, fetchRegisteredDescriptors, startDetectionLoop]);
 
-  // Modal open / close lifecycle
+  // Open / Close lifecycle
   useEffect(() => {
-    let timer: NodeJS.Timeout | null = null;
     if (isOpen) {
-      timer = setTimeout(() => {
-        startCamera();
-      }, 0);
+      startCamera();
     } else {
       stopCamera();
     }
 
     return () => {
-      if (timer) clearTimeout(timer);
       stopCamera();
     };
   }, [isOpen, startCamera, stopCamera]);
@@ -420,41 +379,33 @@ export default function FaceIdLoginModal({
     setFacingMode(prev => (prev === 'user' ? 'environment' : 'user'));
   };
 
-  const handleManualTrigger = () => {
-    executeBiometricRecord();
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200 select-none">
       
       {/* Modal Container */}
-      <div className="relative w-full max-w-[420px] rounded-3xl bg-slate-900/95 border border-slate-700/60 shadow-2xl p-6 text-white space-y-5 overflow-hidden animate-in zoom-in-95 duration-200">
+      <div className="relative w-full max-w-[440px] rounded-3xl bg-slate-950/95 border border-slate-700/80 shadow-2xl p-5 sm:p-6 text-white space-y-4 overflow-hidden animate-in zoom-in-95 duration-200">
         
-        {/* Subtle Background Glow Accent */}
-        <div className="absolute -top-24 -right-24 w-48 h-48 bg-orange-500/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
+        {/* Top Glow Accent */}
+        <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-64 h-32 bg-[#FF6B00]/20 blur-3xl rounded-full pointer-events-none" />
 
-        {/* Hidden Canvas for Optical Tracking Processing */}
-        <canvas ref={canvasRef} className="hidden" />
-
-        {/* Header Section */}
-        <div className="flex items-center justify-between relative z-10">
-          <div className="flex items-center gap-3">
+        {/* Header */}
+        <div className="flex items-center justify-between relative z-10 pb-2 border-b border-slate-800">
+          <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-2xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center text-[#FF6B00] shadow-md shadow-orange-500/10">
               <ScanFace className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-base font-extrabold tracking-tight text-white">
+                <h3 className="text-sm sm:text-base font-extrabold tracking-tight text-white">
                   {mode === 'register' ? 'AI Face ID Registration' : 'AI Face ID Login'}
                 </h3>
                 <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/40">
-                  v2.0
+                  TensorFlow
                 </span>
               </div>
-              <p className="text-xs text-slate-400 font-medium flex items-center gap-1 mt-0.5">
+              <p className="text-[11px] text-slate-400 font-medium flex items-center gap-1 mt-0.5">
                 <Zap className="w-3 h-3 text-orange-400" />
-                {mode === 'register' ? 'Scan and register biometric face profile' : 'Instant face verification in 1-2 seconds'}
+                {mode === 'register' ? 'Pemindaian 68 titik landmark neural' : 'Verifikasi biometrik 128-d dalam 1-2 detik'}
               </p>
             </div>
           </div>
@@ -463,7 +414,7 @@ export default function FaceIdLoginModal({
             <button
               onClick={toggleFacingMode}
               title="Ganti Kamera"
-              className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700/50"
+              className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition-colors border border-slate-700/50 cursor-pointer"
             >
               <SwitchCamera className="w-4 h-4" />
             </button>
@@ -471,7 +422,7 @@ export default function FaceIdLoginModal({
             <button
               onClick={onClose}
               title="Tutup"
-              className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors border border-slate-700/50"
+              className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors border border-slate-700/50 cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -479,15 +430,21 @@ export default function FaceIdLoginModal({
         </div>
 
         {/* Camera Viewfinder Box */}
-        <div className="relative w-full aspect-square max-w-[340px] mx-auto rounded-3xl overflow-hidden bg-black border-2 border-slate-700/60 shadow-2xl flex items-center justify-center group">
+        <div className="relative w-full aspect-square max-w-[340px] mx-auto rounded-3xl overflow-hidden bg-black border-2 border-slate-700/80 shadow-2xl flex items-center justify-center group">
           
-          {cameraError ? (
+          {isLoadingModels ? (
+            <div className="p-6 text-center space-y-3 z-10">
+              <div className="w-10 h-10 border-3 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-xs text-orange-300 font-bold leading-relaxed">{statusMessage}</p>
+              <p className="text-[10px] text-slate-400">Memuat TinyFace & ResNet-34 neural weights...</p>
+            </div>
+          ) : modelError || cameraError ? (
             <div className="p-6 text-center space-y-3 z-10">
               <AlertCircle className="w-12 h-12 text-rose-500 mx-auto animate-bounce" />
-              <p className="text-xs text-rose-300 font-medium leading-relaxed">{cameraError}</p>
+              <p className="text-xs text-rose-300 font-medium leading-relaxed">{modelError || cameraError}</p>
               <button
                 onClick={startCamera}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 transition-all inline-flex items-center gap-1.5"
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-white border border-slate-600 transition-all inline-flex items-center gap-1.5 cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 Coba Lagi
@@ -501,182 +458,138 @@ export default function FaceIdLoginModal({
                 autoPlay
                 playsInline
                 muted
-                className={`w-full h-full object-cover transition-transform duration-300 ${
-                  facingMode === 'user' ? 'scale-x-[-1]' : ''
-                }`}
+                className="w-full h-full object-cover transform scale-x-[-1]"
               />
 
-              {/* Viewfinder 4 Corner Brackets */}
-              <div className={`absolute top-4 left-4 w-6 h-6 border-t-2 border-l-2 rounded-tl-lg pointer-events-none transition-colors duration-300 ${
-                stage === 'success' ? 'border-emerald-400' : stage === 'locked' ? 'border-amber-400' : 'border-[#FF6B00]'
-              }`} />
-              <div className={`absolute top-4 right-4 w-6 h-6 border-t-2 border-r-2 rounded-tr-lg pointer-events-none transition-colors duration-300 ${
-                stage === 'success' ? 'border-emerald-400' : stage === 'locked' ? 'border-amber-400' : 'border-[#FF6B00]'
-              }`} />
-              <div className={`absolute bottom-4 left-4 w-6 h-6 border-b-2 border-l-2 rounded-bl-lg pointer-events-none transition-colors duration-300 ${
-                stage === 'success' ? 'border-emerald-400' : stage === 'locked' ? 'border-amber-400' : 'border-[#FF6B00]'
-              }`} />
-              <div className={`absolute bottom-4 right-4 w-6 h-6 border-b-2 border-r-2 rounded-br-lg pointer-events-none transition-colors duration-300 ${
-                stage === 'success' ? 'border-emerald-400' : stage === 'locked' ? 'border-amber-400' : 'border-[#FF6B00]'
-              }`} />
+              {/* Canvas Overlay for Detections & Landmarks */}
+              <canvas
+                ref={canvasRef}
+                className="absolute inset-0 w-full h-full pointer-events-none transform scale-x-[-1]"
+              />
 
-              {/* Top & Bottom Alignment Marks */}
-              <div className="absolute top-3 left-1/2 -translate-x-1/2 w-10 h-1 bg-[#FF6B00] rounded-full shadow-lg pointer-events-none" />
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-10 h-1 bg-[#FF6B00] rounded-full shadow-lg pointer-events-none" />
-
-              {/* CENTER OVAL FACE TARGET & TRACKING FRAME */}
-              <div 
-                className={`absolute w-[68%] h-[82%] rounded-[50%] border-2 pointer-events-none transition-all duration-200 flex items-center justify-center ${
-                  stage === 'success'
-                    ? 'border-emerald-400 shadow-[0_0_40px_rgba(16,185,129,0.9)] scale-105'
-                    : stage === 'locked' || stage === 'verifying'
-                    ? 'border-amber-400 shadow-[0_0_35px_rgba(251,191,36,0.8)] scale-[1.02]'
-                    : stage === 'tracking'
-                    ? 'border-[#FF6B00] shadow-[0_0_25px_rgba(255,107,0,0.7)]'
-                    : stage === 'unrecognized'
-                    ? 'border-rose-500/80 shadow-[0_0_20px_rgba(244,63,94,0.5)]'
-                    : 'border-slate-500/40 shadow-[0_0_15px_rgba(148,163,184,0.2)]'
-                }`}
-              >
-                {/* Horizontal Laser Scanning Bar (Sweeps across the face during tracking) */}
-                {(stage === 'tracking' || stage === 'locked') && (
-                  <div 
-                    className="absolute inset-x-3 h-[3px] bg-gradient-to-r from-transparent via-[#FF6B00] to-transparent shadow-[0_0_12px_#FF6B00] pointer-events-none transition-all duration-75"
-                    style={{ top: `${laserPos}%` }}
-                  />
-                )}
+              {/* Status Badge Top Left */}
+              <div className="absolute top-3 left-3 z-20">
+                <span className="badge bg-slate-900/80 backdrop-blur-md border border-slate-700/80 text-[10px] font-bold px-2.5 py-1 rounded-full text-slate-200 flex items-center gap-1.5 shadow">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>LIVE AI SCANNER</span>
+                </span>
               </div>
 
-              {/* HUD OVERLAY BADGE */}
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                {stage === 'locked' && (
-                  <div className="w-16 h-16 rounded-full bg-amber-500/80 backdrop-blur-md border border-amber-300 flex items-center justify-center shadow-[0_0_30px_rgba(245,158,11,0.8)] animate-in zoom-in-90 duration-150">
-                    <Target className="w-8 h-8 text-white stroke-[2.5] animate-spin duration-1000" />
-                  </div>
-                )}
+              {/* Match Score Badge Top Right (Login mode) */}
+              {mode === 'login' && matchedUser && (
+                <div className="absolute top-3 right-3 z-20 animate-in zoom-in-95">
+                  <span className="bg-emerald-500/20 backdrop-blur-md border border-emerald-500/40 text-[10px] font-extrabold px-2.5 py-1 rounded-full text-emerald-300 flex items-center gap-1 shadow">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Match {matchScore}%</span>
+                  </span>
+                </div>
+              )}
 
-                {stage === 'unrecognized' && (
-                  <div className="w-16 h-16 rounded-full bg-rose-600/75 backdrop-blur-md border border-rose-400/80 flex items-center justify-center shadow-[0_0_30px_rgba(225,29,72,0.7)] animate-in zoom-in-75 duration-150">
-                    <AlertCircle className="w-8 h-8 text-white stroke-[2.5]" />
-                  </div>
-                )}
-
-                {stage === 'success' && (
-                  <div className="w-20 h-20 rounded-full bg-emerald-600/90 backdrop-blur-md border-2 border-emerald-300 flex items-center justify-center shadow-[0_0_40px_rgba(16,185,129,0.95)] animate-in zoom-in-90 duration-300">
-                    <CheckCircle2 className="w-10 h-10 text-white stroke-[2.5]" />
-                  </div>
-                )}
+              {/* Viewfinder Target Guide Overlay */}
+              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                <div className="w-[200px] h-[250px] rounded-[100px] border-2 border-dashed border-orange-400/40 animate-pulse" />
               </div>
             </>
           )}
-        </div>
 
-        {/* Status Line & 4-Stage Progress Bar */}
-        <div className="space-y-1.5 pt-1">
-          <div className="flex items-center justify-between text-xs font-semibold">
-            <div className="flex items-center gap-2 truncate pr-2">
-              <span 
-                className={`w-2 h-2 rounded-full shrink-0 ${
-                  stage === 'success'
-                    ? 'bg-emerald-500 animate-ping'
-                    : stage === 'locked' || stage === 'verifying'
-                    ? 'bg-amber-400 animate-pulse'
-                    : stage === 'tracking'
-                    ? 'bg-orange-500 animate-pulse'
-                    : stage === 'unrecognized'
-                    ? 'bg-rose-500 animate-pulse'
-                    : 'bg-slate-400'
-                }`} 
-              />
-              <span className={`truncate ${
-                stage === 'success'
-                  ? 'text-emerald-400 font-bold'
-                  : stage === 'locked' || stage === 'verifying'
-                  ? 'text-amber-300 font-bold'
-                  : stage === 'tracking'
-                  ? 'text-orange-400 font-medium'
-                  : stage === 'unrecognized'
-                  ? 'text-rose-400 font-medium'
-                  : 'text-slate-300'
-              }`}>
-                {statusMessage}
-              </span>
+          {/* Success Overlay Flash */}
+          {successResult && (
+            <div className="absolute inset-0 bg-emerald-950/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center space-y-2.5 z-30 animate-in fade-in zoom-in">
+              <div className="w-14 h-14 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center text-emerald-300 shadow-xl shadow-emerald-900/50">
+                <CheckCircle2 className="w-8 h-8" />
+              </div>
+              <h4 className="text-base font-extrabold text-white">
+                {mode === 'register' ? 'Pendaftaran Sukses!' : 'Autentikasi Berhasil!'}
+              </h4>
+              <p className="text-xs text-emerald-200 font-medium">
+                {successResult.username} ({successResult.id})
+              </p>
             </div>
-            
-            <span className="text-xs font-mono font-bold text-orange-400 shrink-0">
-              {progress}%
-            </span>
-          </div>
-
-          {/* Progress Bar Track */}
-          <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-150 ${
-                stage === 'success'
-                  ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
-                  : stage === 'locked' || stage === 'verifying'
-                  ? 'bg-gradient-to-r from-amber-400 to-yellow-300'
-                  : stage === 'tracking'
-                  ? 'bg-gradient-to-r from-orange-500 to-amber-500'
-                  : 'bg-gradient-to-r from-rose-500 to-pink-500'
-              }`}
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-
-          {/* 4-Stage Subtitle Description */}
-          <div className="flex items-center justify-center gap-1.5 text-[11px] text-slate-400 font-medium pt-1">
-            {stage === 'searching' && <span>Menunggu wajah masuk ke dalam lingkaran oval...</span>}
-            {stage === 'tracking' && <span className="text-orange-400 font-bold">Wajah terdeteksi! Tahan posisi stabil untuk mengunci...</span>}
-            {stage === 'locked' && <span className="text-amber-400 font-bold">Target Terkunci! Mengambil rekaman biometrik...</span>}
-            {stage === 'verifying' && <span className="text-amber-300 font-bold">Memvalidasi data biometrik dengan sistem...</span>}
-            {stage === 'success' && <span className="text-emerald-400 font-bold">Autentikasi Berhasil!</span>}
-            {stage === 'unrecognized' && <span className="text-rose-400 font-bold">Wajah tidak cocok. Mengulang deteksi otomatis...</span>}
-          </div>
+          )}
         </div>
 
-        {/* Action Buttons Section */}
-        <div className="space-y-2.5 pt-1">
+        {/* Results & Actions Section */}
+        <div className="space-y-3">
           
-          {/* Main Primary Action Button */}
-          <button
-            type="button"
-            onClick={handleManualTrigger}
-            disabled={stage === 'success' || !!cameraError}
-            className="w-full py-3 rounded-2xl text-xs sm:text-sm font-extrabold btn-orange text-white shadow-xl hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:pointer-events-none"
-          >
-            <Camera className="w-4 h-4" />
-            <span>{mode === 'register' ? 'Capture & Save Face ID' : 'Scan & Login Now'}</span>
-            <Sparkles className="w-3.5 h-3.5 text-amber-200" />
-          </button>
-
-          {/* Secondary Action Buttons Row */}
-          <div className="flex items-center gap-2">
-            
-            <button
-              type="button"
-              onClick={startCamera}
-              disabled={stage === 'success' || !!cameraError}
-              className="flex-1 py-2.5 px-4 rounded-xl text-xs font-bold bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700/80 flex items-center justify-center gap-2 transition-all"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${stage === 'tracking' || stage === 'locked' ? 'animate-spin' : ''}`} />
-              <span>Retry Scan</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="py-2.5 px-5 rounded-xl text-xs font-bold bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700/80 transition-all"
-            >
-              Cancel
-            </button>
-
+          {/* Status Message Text */}
+          <div className="bg-slate-900/80 p-3 rounded-2xl border border-slate-800 text-center">
+            <p className="text-xs font-semibold text-slate-200 leading-snug">
+              {statusMessage}
+            </p>
           </div>
+
+          {/* Matched User Card (Login Mode) */}
+          {mode === 'login' && matchedUser && (
+            <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between animate-in fade-in">
+              <div className="flex items-center gap-3">
+                {matchedUser.photo ? (
+                  <img
+                    src={matchedUser.photo}
+                    alt={matchedUser.username}
+                    className="w-10 h-10 rounded-xl object-cover border border-emerald-500/40 shadow-sm"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold">
+                    <UserCheck className="w-5 h-5" />
+                  </div>
+                )}
+                <div>
+                  <div className="text-xs font-extrabold text-white">{matchedUser.username}</div>
+                  <div className="text-[10px] text-emerald-300 font-medium">ID: {matchedUser.user_id} • {matchedUser.role}</div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => handleAuthenticateUser(matchedUser, matchScore)}
+                disabled={isCapturing}
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-1 shadow-md shadow-emerald-950/40 cursor-pointer"
+              >
+                <span>Masuk</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Action Button for Register Mode */}
+          {mode === 'register' && (
+            <button
+              onClick={handleRegisterFace}
+              disabled={isCapturing || isLoadingModels || !!cameraError}
+              className="w-full py-3 rounded-2xl bg-gradient-to-r from-[#FF6B00] to-[#E05600] text-white text-xs font-black hover:from-[#E05600] hover:to-[#C04600] transition flex items-center justify-center gap-2 shadow-lg shadow-orange-950/40 cursor-pointer active:scale-98 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isCapturing ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Menyimpan Sampel Wajah...</span>
+                </>
+              ) : (
+                <>
+                  <Camera className="w-4 h-4" />
+                  <span>Ambil & Simpan Biometrik Wajah</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Fallback button for Login Mode if user wants manual trigger */}
+          {mode === 'login' && !matchedUser && (
+            <button
+              onClick={() => {
+                if (registeredUsers.length > 0) {
+                  setStatusMessage('Mencocokkan wajah dengan seluruh data karyawan...');
+                }
+              }}
+              disabled={isLoadingModels || !!cameraError}
+              className="w-full py-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-slate-700/60 text-slate-300 text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <ScanFace className="w-3.5 h-3.5 text-[#FF6B00]" />
+              <span>Pindai Wajah Manual</span>
+            </button>
+          )}
 
         </div>
 
       </div>
-
     </div>
   );
 }
