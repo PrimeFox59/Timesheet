@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { emitRealtimeEvent } from '@/lib/events';
+import { getWibTimestamp } from '@/lib/dateUtils';
 
 export async function POST(request: Request) {
   try {
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No employees found for bulk approval.' }, { status: 400 });
     }
 
-    const timestamp = new Date().toISOString();
+    const timestamp = getWibTimestamp();
 
     // Use SQLite transaction for high speed batch execution
     const insertApprovalStmt = db.prepare(`

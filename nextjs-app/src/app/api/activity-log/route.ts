@@ -54,7 +54,7 @@ export async function GET(request: Request) {
              COALESCE(working_hours, hours, 8) as hours,
              COALESCE(overtime_hours, overtime, 0) as overtime,
              area1, area2, area3, area4, shift, remark,
-             COALESCE(timestamp, submission_timestamp, datetime('now')) as timestamp
+             COALESCE(timestamp, submission_timestamp, datetime('now', '+7 hours')) as timestamp
       FROM presensi
       ${whereClause}
       ORDER BY date DESC, id DESC

@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { broadcastRealtimeEvent } from '@/lib/socketBroadcaster';
+import { getWibTimestamp } from '@/lib/dateUtils';
 
 export async function POST(request: Request) {
   try {
-    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const timestamp = getWibTimestamp();
 
     const resetTx = db.transaction(() => {
       // 1. Clear all tables safely

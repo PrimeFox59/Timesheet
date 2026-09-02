@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
+import { getWibTimestamp } from '@/lib/dateUtils';
 
 export async function GET(request: Request) {
   try {
@@ -91,7 +92,7 @@ export async function POST(request: Request) {
     const end = new Date(end_date);
     const calculatedDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
 
-    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const timestamp = getWibTimestamp();
 
     const result = db.prepare(`
       INSERT INTO tasks (
@@ -168,7 +169,7 @@ export async function PUT(request: Request) {
     const end = new Date(end_date);
     const calculatedDays = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
 
-    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const timestamp = getWibTimestamp();
 
     db.prepare(`
       UPDATE tasks

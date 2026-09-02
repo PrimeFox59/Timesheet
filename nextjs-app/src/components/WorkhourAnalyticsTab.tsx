@@ -6,14 +6,15 @@ import {
   RefreshCw, Award, MapPin, Flame, CalendarRange
 } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
+import { getWibMonthStr } from '@/lib/dateUtils';
 
 interface WorkhourAnalyticsTabProps {
   currentUser: any;
 }
 
 export default function WorkhourAnalyticsTab({ currentUser }: WorkhourAnalyticsTabProps) {
-  const currentMonthStr = new Date().toISOString().substring(0, 7); // YYYY-MM
-  const currentYearStr = new Date().getFullYear().toString(); // YYYY
+  const currentMonthStr = getWibMonthStr(); // YYYY-MM in GMT+7 WIB
+  const currentYearStr = currentMonthStr.substring(0, 4); // YYYY
 
   const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
   const [selectedYear, setSelectedYear] = useState(currentYearStr);

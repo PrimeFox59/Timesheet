@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
+import { getWibTimestamp } from '@/lib/dateUtils';
 
 export async function POST(request: Request) {
   try {
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
       WHERE LOWER(id) = LOWER(?)
     `).run(cleanId);
 
-    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const timestamp = getWibTimestamp();
     db.prepare(`
       INSERT INTO audit_log (timestamp, user_id, username, action, description, status)
       VALUES (?, ?, ?, 'DELETE_FACE_ID', 'Face ID Biometric Profile Deleted', 'Success')

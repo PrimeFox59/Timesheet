@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import * as XLSX from 'xlsx';
+import { getWibDateStr } from '@/lib/dateUtils';
 
 export async function GET() {
   try {
@@ -29,7 +30,7 @@ export async function GET() {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="timesheet_metso_backup_${new Date().toISOString().substring(0, 10)}.xlsx"`
+        'Content-Disposition': `attachment; filename="timesheet_metso_backup_${getWibDateStr()}.xlsx"`
       }
     });
 

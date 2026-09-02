@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { broadcastRealtimeEvent } from '@/lib/socketBroadcaster';
+import { getWibTimestamp } from '@/lib/dateUtils';
 
 export async function POST(request: Request) {
   try {
@@ -11,7 +12,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'user_id, month, approver_id, and signature_data are required.' }, { status: 400 });
     }
 
-    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const timestamp = getWibTimestamp();
 
     const upsertStmt = db.prepare(`
       INSERT INTO approvals (user_id, month, status, approver_id, approver_name, signature_data, timestamp)

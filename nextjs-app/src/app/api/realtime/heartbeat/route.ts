@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { broadcastRealtimeEvent } from '@/lib/socketBroadcaster';
+import { getWibTimestamp } from '@/lib/dateUtils';
 
 export async function POST(request: Request) {
   try {
@@ -10,7 +11,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
-    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const timestamp = getWibTimestamp();
 
     db.prepare('UPDATE users SET last_active = ? WHERE id = ?').run(timestamp, user_id);
 

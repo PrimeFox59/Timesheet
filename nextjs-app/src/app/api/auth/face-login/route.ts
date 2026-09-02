@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import '@/lib/seed';
+import { getWibTimestamp } from '@/lib/dateUtils';
 
 function euclideanDistance(arrA: number[], arrB: number[]): number {
   if (!arrA || !arrB || arrA.length !== arrB.length || arrA.length === 0) return 1.0;
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
       }
     } catch (e) {}
 
-    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const timestamp = getWibTimestamp();
 
     // Case 1: Match by user_id confirmed by client-side face-api.js edge model
     if (user_id) {

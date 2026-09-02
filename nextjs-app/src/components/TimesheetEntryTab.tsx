@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Sparkles, CheckCircle2, AlertCircle, RefreshCw, FileSpreadsheet, Download, Lock } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
+import { getWibMonthStr, getWibDateStr, TIMEZONE_WIB } from '@/lib/dateUtils';
 
 interface TimesheetEntryTabProps {
   user: any;
@@ -228,7 +229,7 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
     return `${String(d).padStart(2, '0')}-${months[dateObj.getMonth()]}-${y}`;
   };
 
-  const currentYearMonth = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+  const currentYearMonth = getWibMonthStr(); // Always evaluates to GMT+7 (WIB)
   const isDateEditable = (dateStr: string) => isSuperUser || dateStr.startsWith(currentYearMonth);
 
   // Allow selecting any past date for viewing; max date is clamped to current month for non-superusers

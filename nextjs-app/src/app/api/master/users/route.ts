@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { broadcastRealtimeEvent } from '@/lib/socketBroadcaster';
+import { getWibTimestamp } from '@/lib/dateUtils';
 
 export async function GET() {
   try {
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
       );
 
       // Audit Log
-      const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      const timestamp = getWibTimestamp();
       db.prepare(`
         INSERT INTO audit_log (timestamp, user_id, username, action, description, status)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -109,7 +110,7 @@ export async function PUT(request: Request) {
     );
 
     // Audit Log
-    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const timestamp = getWibTimestamp();
     db.prepare(`
       INSERT INTO audit_log (timestamp, user_id, username, action, description, status)
       VALUES (?, ?, ?, ?, ?, ?)
@@ -148,7 +149,7 @@ export async function DELETE(request: Request) {
     db.prepare('DELETE FROM users WHERE id = ?').run(id);
 
     // Audit Log
-    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const timestamp = getWibTimestamp();
     db.prepare(`
       INSERT INTO audit_log (timestamp, user_id, username, action, description, status)
       VALUES (?, ?, ?, ?, ?, ?)

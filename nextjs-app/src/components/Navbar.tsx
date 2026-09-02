@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { LogOut, User, Shield, Clock, Compass, AlertTriangle } from 'lucide-react';
 
 interface NavbarProps {
@@ -11,6 +11,26 @@ interface NavbarProps {
 }
 
 export default function Navbar({ user, onLogout, onOpenProfileSettings, onOpenAppTour }: NavbarProps) {
+  const [wibTime, setWibTime] = useState<string>('');
+
+  useEffect(() => {
+    const updateTime = () => {
+      try {
+        const str = new Intl.DateTimeFormat('id-ID', {
+          timeZone: 'Asia/Jakarta',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        }).format(new Date());
+        setWibTime(str);
+      } catch (e) {}
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   // Incomplete profile check (Email, Phone, Face ID)
   const isMissingEmail = !user?.email || String(user.email).trim() === '';
   const isMissingPhone = !user?.phone || String(user.phone).trim() === '';
@@ -54,6 +74,17 @@ export default function Navbar({ user, onLogout, onOpenProfileSettings, onOpenAp
             </div>
           </div>
         </div>
+
+        {/* Live WIB Clock & Timezone Indicator */}
+        {wibTime && (
+          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100/90 border border-slate-200/80 text-slate-700 shadow-2xs text-xs font-mono select-none">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className="font-bold text-slate-900">{wibTime}</span>
+            <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-orange-100 text-[#FF6B00] border border-orange-200/70">
+              WIB (GMT+7)
+            </span>
+          </div>
+        )}
 
         {/* User Info & Actions */}
         {user && (

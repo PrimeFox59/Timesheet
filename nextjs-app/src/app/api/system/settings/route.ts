@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
+import { getWibTimestamp } from '@/lib/dateUtils';
 
 const KEY_ALIASES: Record<string, string[]> = {
   enable_face_login: ['feature_face_login'],
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
     }
 
     const valString = typeof value === 'boolean' ? (value ? 'true' : 'false') : String(value);
-    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const timestamp = getWibTimestamp();
 
     const keysToUpdate = [key, ...(KEY_ALIASES[key] || [])];
 

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import * as XLSX from 'xlsx';
 import { broadcastRealtimeEvent } from '@/lib/socketBroadcaster';
+import { getWibTimestamp } from '@/lib/dateUtils';
 
 export async function POST(request: Request) {
   try {
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
     let importedAudit = 0;
     let importedAreas = 0;
 
-    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const timestamp = getWibTimestamp();
 
     // Helper to find value from row with flexible key matching
     const getValue = (row: any, keys: string[], defaultValue: any = '') => {

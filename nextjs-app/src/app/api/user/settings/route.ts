@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
+import { getWibTimestamp } from '@/lib/dateUtils';
 
 export async function PUT(request: Request) {
   try {
@@ -27,7 +28,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const timestamp = getWibTimestamp();
 
     if (action === 'change_password') {
       if (!old_password || !new_password) {

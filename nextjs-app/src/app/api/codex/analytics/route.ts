@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
+import { getWibMonthStr } from '@/lib/dateUtils';
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const month = searchParams.get('month') || new Date().toISOString().substring(0, 7); // YYYY-MM
+    const month = searchParams.get('month') || getWibMonthStr(); // YYYY-MM in WIB
     const year = searchParams.get('year') || month.substring(0, 4); // YYYY
 
     const monthPattern = `${month}-%`;

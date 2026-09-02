@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { broadcastRealtimeEvent } from '@/lib/socketBroadcaster';
+import { getWibTimestamp } from '@/lib/dateUtils';
 
 export async function GET() {
   try {
@@ -28,7 +29,7 @@ export async function POST(request: Request) {
 
     db.prepare('INSERT INTO areas (name) VALUES (?)').run(cleanName);
 
-    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const timestamp = getWibTimestamp();
     db.prepare(`
       INSERT INTO audit_log (timestamp, user_id, username, action, description, status)
       VALUES (?, ?, ?, ?, ?, ?)
@@ -63,7 +64,7 @@ export async function DELETE(request: Request) {
 
     db.prepare('DELETE FROM areas WHERE name = ?').run(cleanName);
 
-    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const timestamp = getWibTimestamp();
     db.prepare(`
       INSERT INTO audit_log (timestamp, user_id, username, action, description, status)
       VALUES (?, ?, ?, ?, ?, ?)

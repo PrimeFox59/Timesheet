@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import '@/lib/seed';
+import { getWibTimestamp } from '@/lib/dateUtils';
 
 export async function POST(request: Request) {
   try {
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
     const stmt = db.prepare('SELECT * FROM users WHERE LOWER(id) = LOWER(?) OR LOWER(username) = LOWER(?)');
     const user = stmt.get(cleanId, cleanId) as any;
 
-    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const timestamp = getWibTimestamp();
 
     if (!user || user.password !== password) {
       // Log failed login

@@ -101,8 +101,8 @@ export function initDb() {
       area4 TEXT DEFAULT '',
       shift TEXT DEFAULT 'Day Shift',
       remark TEXT DEFAULT '',
-      submission_timestamp TEXT NOT NULL DEFAULT (datetime('now')),
-      timestamp TEXT NOT NULL DEFAULT (datetime('now'))
+      submission_timestamp TEXT NOT NULL DEFAULT (datetime('now', '+7 hours')),
+      timestamp TEXT NOT NULL DEFAULT (datetime('now', '+7 hours'))
     );
 
     CREATE TABLE IF NOT EXISTS audit_log (
@@ -147,8 +147,8 @@ export function initDb() {
       manager_id TEXT DEFAULT '',
       manager_name TEXT DEFAULT '',
       created_by TEXT DEFAULT 'admin',
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (datetime('now', '+7 hours')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now', '+7 hours'))
     );
 
     CREATE TABLE IF NOT EXISTS project_members (
@@ -157,7 +157,7 @@ export function initDb() {
       user_id TEXT NOT NULL,
       role TEXT DEFAULT 'member',
       invited_by TEXT DEFAULT 'admin',
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now', '+7 hours')),
       UNIQUE(project_id, user_id)
     );
 
@@ -180,8 +180,8 @@ export function initDb() {
       estimated_hours REAL DEFAULT 0,
       actual_hours REAL DEFAULT 0,
       color TEXT DEFAULT '#FF6B00',
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TEXT NOT NULL DEFAULT (datetime('now', '+7 hours')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now', '+7 hours'))
     );
 
     CREATE TABLE IF NOT EXISTS chat_messages (
@@ -197,15 +197,15 @@ export function initDb() {
       file_name TEXT DEFAULT '',
       file_size INTEGER DEFAULT 0,
       file_type TEXT DEFAULT '',
-      timestamp TEXT NOT NULL DEFAULT (datetime('now')),
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      timestamp TEXT NOT NULL DEFAULT (datetime('now', '+7 hours')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now', '+7 hours'))
     );
 
     CREATE TABLE IF NOT EXISTS system_settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL,
       description TEXT DEFAULT '',
-      updated_at TEXT DEFAULT (datetime('now'))
+      updated_at TEXT DEFAULT (datetime('now', '+7 hours'))
     );
 
     -- Create High Performance Indexes

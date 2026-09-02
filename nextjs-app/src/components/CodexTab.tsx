@@ -7,6 +7,7 @@ import {
   Search, ArrowUpDown, ArrowUp, ArrowDown, Filter
 } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
+import { getWibMonthStr } from '@/lib/dateUtils';
 
 interface CodexTabProps {
   currentUser: any;
@@ -17,7 +18,7 @@ type SortField = 'user_id' | 'username' | 'role' | 'total_entries' | 'total_hour
 
 export default function CodexTab({ currentUser, usersList }: CodexTabProps) {
   const isSuperuser = currentUser?.id?.toLowerCase() === 'prime' || currentUser?.id?.toLowerCase() === 'com116' || currentUser?.role?.toLowerCase() === 'superuser';
-  const currentMonthStr = new Date().toISOString().substring(0, 7); // YYYY-MM
+  const currentMonthStr = getWibMonthStr(); // YYYY-MM in GMT+7 WIB
   const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
 
   const [loading, setLoading] = useState(false);

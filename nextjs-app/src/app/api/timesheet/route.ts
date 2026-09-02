@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { broadcastRealtimeEvent } from '@/lib/socketBroadcaster';
+import { getWibTimestamp, getWibMonthStr } from '@/lib/dateUtils';
 
 // Cache prepared queries for maximum speed
 const getTimesheetStmt = db.prepare(`
@@ -10,7 +11,7 @@ const getTimesheetStmt = db.prepare(`
          COALESCE(overtime_hours, overtime, 0) as overtime_hours,
          COALESCE(overtime, overtime_hours, 0) as overtime,
          area1, area2, area3, area4, shift, remark,
-         COALESCE(timestamp, submission_timestamp, datetime('now')) as timestamp
+         COALESCE(timestamp, submission_timestamp, datetime('now', '+7 hours')) as timestamp
   FROM presensi 
   WHERE 1=1
 `);
@@ -98,21 +99,19 @@ export async function POST(request: Request) {
       } catch (e) {}
     }
 
-    // If regular user (non-superuser), strictly validate that all entry dates belong to current running month (YYYY-MM in Asia/Jakarta timezone)
+    // If regular user (non-superuser), strictly validate that all entry dates belong to current running month (YYYY-MM in GMT+7 WIB)
     if (!isSuperUser) {
-      const now = new Date();
-      const jakartaFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit' });
-      const currentYearMonth = jakartaFormatter.format(now); // Always matches Indonesia WIB/WITA (YYYY-MM)
+      const currentYearMonth = getWibMonthStr(); // Always matches Indonesia WIB (YYYY-MM)
       for (const row of entries) {
         if (!row.date || !String(row.date).startsWith(currentYearMonth)) {
           return NextResponse.json({
-            error: `Timesheet submission is locked to the current active month (${currentYearMonth}). Date '${row.date}' falls outside this period.`
+            error: `Timesheet submission is locked to the current active month (${currentYearMonth} WIB). Date '${row.date}' falls outside this period.`
           }, { status: 400 });
         }
       }
     }
 
-    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const timestamp = getWibTimestamp();
 
     const transaction = db.transaction((rows: any[]) => {
       for (const row of rows) {
