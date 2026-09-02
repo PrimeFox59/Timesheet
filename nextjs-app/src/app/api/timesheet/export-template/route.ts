@@ -3,6 +3,112 @@ import db from '@/lib/db';
 import path from 'path';
 import fs from 'fs';
 import { execSync } from 'child_process';
+import ExcelJS from 'exceljs';
+
+async function generateWithExcelJS(templatePath: string, outputPath: string, user: any, monthStr: string, records: any[], approval: any) {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(templatePath);
+  const ws = workbook.getWorksheet('Timesheet') || workbook.worksheets[0];
+
+  const [year, monthNum] = monthStr.split('-').map(Number);
+  const monthNamesShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const monthLabel = `${monthNamesShort[monthNum - 1]}-${year}`;
+
+  ws.getCell('A6').value = `NAME:  ${user.username}`;
+  ws.getCell('G6').value = monthLabel;
+  ws.getCell('G7').value = user.id;
+  ws.getCell('G8').value = user.role || 'Commissioning Engineer';
+
+  // Calculate days in month
+  const totalDays = new Date(year, monthNum, 0).getDate();
+  const dayNamesList = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+  const recordMap = new Map<string, any>();
+  records.forEach(r => recordMap.set(r.date, r));
+
+  for (let day = 1; day <= 31; day++) {
+    const rowIdx = 10 + day; // Row 11 is Day 1
+    if (day <= totalDays) {
+      const dt = new Date(year, monthNum - 1, day);
+      const dayName = dayNamesList[dt.getDay()];
+      const dd = String(day).padStart(2, '0');
+      const mm = String(monthNum).padStart(2, '0');
+      const dateStrFormatted = `${dd}/${mm}/${year}`;
+      const ymdDate = `${year}-${mm}-${dd}`;
+      const isWeekend = dt.getDay() === 0 || dt.getDay() === 6;
+
+      const rec = recordMap.get(ymdDate);
+
+      ws.getCell(`A${rowIdx}`).value = dayName;
+      ws.getCell(`B${rowIdx}`).value = dateStrFormatted;
+
+      if (rec) {
+        const regHrs = Number(rec.working_hours || rec.hours || 0);
+        const otHrs = Number(rec.overtime_hours || rec.overtime || 0);
+        const areas = [rec.area1, rec.area2, rec.area3, rec.area4].filter(Boolean);
+        const areasStr = areas.join(', ');
+        const remark = rec.remark || '';
+        const desc = (areasStr && remark) ? `${areasStr} - ${remark}` : (areasStr || remark || 'Commissioning Work');
+
+        const rmkUpper = remark.toUpperCase();
+        let dayType = 'WORK';
+        if (rmkUpper.includes('ROTATION')) dayType = 'ROTATION';
+        else if (rmkUpper.includes('SICK')) dayType = 'SICK';
+        else if (rmkUpper.includes('HOLIDAY')) dayType = 'HOLIDAY';
+        else if (rmkUpper.includes('TRAVEL')) dayType = 'TRAVEL';
+        else if (regHrs === 0) dayType = 'WEEKLY OFF';
+
+        ws.getCell(`C${rowIdx}`).value = dayType;
+        ws.getCell(`D${rowIdx}`).value = regHrs;
+        ws.getCell(`E${rowIdx}`).value = otHrs;
+        ws.getCell(`F${rowIdx}`).value = 0;
+        ws.getCell(`G${rowIdx}`).value = desc;
+      } else {
+        ws.getCell(`C${rowIdx}`).value = isWeekend ? 'WEEKLY OFF' : 'WORK';
+        ws.getCell(`D${rowIdx}`).value = 0;
+        ws.getCell(`E${rowIdx}`).value = 0;
+        ws.getCell(`F${rowIdx}`).value = 0;
+        ws.getCell(`G${rowIdx}`).value = '';
+      }
+    } else {
+      ws.getCell(`A${rowIdx}`).value = '';
+      ws.getCell(`B${rowIdx}`).value = '';
+      ws.getCell(`C${rowIdx}`).value = '';
+      ws.getCell(`D${rowIdx}`).value = 0;
+      ws.getCell(`E${rowIdx}`).value = 0;
+      ws.getCell(`F${rowIdx}`).value = 0;
+      ws.getCell(`G${rowIdx}`).value = '';
+    }
+  }
+
+  // Employee signature block
+  ws.getCell('B57').value = user.username;
+  ws.getCell('B58').value = user.role || 'Commissioning Engineer';
+
+  // Approver signature block
+  if (approval && approval.signature_data) {
+    try {
+      let base64Image = approval.signature_data;
+      if (base64Image.includes(',')) {
+        base64Image = base64Image.split(',')[1];
+      }
+      const imageId = workbook.addImage({
+        base64: base64Image,
+        extension: 'png'
+      });
+      ws.addImage(imageId, {
+        tl: { col: 6.2, row: 59.2 },
+        ext: { width: 140, height: 55 }
+      });
+      ws.getCell('G57').value = approval.approver_name || 'Site Manager';
+      ws.getCell('G58').value = 'SITE MANAGER / CUSTOMER REP';
+    } catch (e) {
+      console.warn('Failed to embed signature image in exceljs:', e);
+    }
+  }
+
+  await workbook.xlsx.writeFile(outputPath);
+}
 
 export async function GET(request: Request) {
   const tmpFiles: string[] = [];
@@ -69,35 +175,46 @@ export async function GET(request: Request) {
 
     tmpFiles.push(jsonPath, approvalJsonPath, outputPath);
 
-    fs.writeFileSync(jsonPath, JSON.stringify(records), 'utf-8');
-    if (approval) {
-      fs.writeFileSync(approvalJsonPath, JSON.stringify(approval), 'utf-8');
-    } else {
-      fs.writeFileSync(approvalJsonPath, '{}', 'utf-8');
-    }
-
-    // 6. Execute Python Openpyxl Script (Preserves 100% Logo, Styles, Fills, Borders, Fonts, Formulas & Signature)
-    let pythonBin = 'python3';
-    if (process.platform === 'win32') {
+    // Try Python Openpyxl Engine first (for PIL signature anti-aliasing)
+    let generated = false;
+    if (fs.existsSync(pythonScriptPath)) {
       try {
-        execSync('python --version', { stdio: 'ignore' });
-        pythonBin = 'python';
-      } catch (e) {
-        try {
-          execSync('py --version', { stdio: 'ignore' });
-          pythonBin = 'py';
-        } catch (e2) {
-          pythonBin = 'python';
+        fs.writeFileSync(jsonPath, JSON.stringify(records), 'utf-8');
+        fs.writeFileSync(approvalJsonPath, approval ? JSON.stringify(approval) : '{}', 'utf-8');
+
+        let pythonBin = 'python3';
+        if (process.platform === 'win32') {
+          try {
+            execSync('python --version', { stdio: 'ignore' });
+            pythonBin = 'python';
+          } catch (e) {
+            try {
+              execSync('py --version', { stdio: 'ignore' });
+              pythonBin = 'py';
+            } catch (e2) {
+              pythonBin = 'python';
+            }
+          }
         }
+
+        const pythonCmd = `${pythonBin} "${pythonScriptPath}" "${templatePath}" "${outputPath}" "${user.id}" "${user.username}" "${user.role || 'Commissioning Engineer'}" "${monthStr}" "${jsonPath}" "${approvalJsonPath}"`;
+        execSync(pythonCmd, { encoding: 'utf-8', timeout: 10000 });
+
+        if (fs.existsSync(outputPath) && fs.statSync(outputPath).size > 10000) {
+          generated = true;
+        }
+      } catch (pyErr) {
+        console.warn('Python export failed or python not installed, falling back to ExcelJS:', pyErr);
       }
     }
 
-    const pythonCmd = `${pythonBin} "${pythonScriptPath}" "${templatePath}" "${outputPath}" "${user.id}" "${user.username}" "${user.role || 'Commissioning Engineer'}" "${monthStr}" "${jsonPath}" "${approvalJsonPath}"`;
-
-    execSync(pythonCmd, { encoding: 'utf-8' });
+    // Pure Node.js ExcelJS Engine Fallback (Zero Python runtime dependency)
+    if (!generated) {
+      await generateWithExcelJS(templatePath, outputPath, user, monthStr, records, approval);
+    }
 
     if (!fs.existsSync(outputPath)) {
-      throw new Error('Python failed to generate exported Excel file.');
+      throw new Error('Failed to generate exported Excel file.');
     }
 
     const outputBuffer = fs.readFileSync(outputPath);
