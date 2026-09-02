@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,600;1,700&display=swap');
 
 :root {
   --metso-orange: #FF6B00;
@@ -7,6 +8,9 @@
   --metso-mint: #00E2B0;
   --metso-lime: #DEEC29;
   --metso-black: #090909;
+  
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 body {
@@ -14,8 +18,31 @@ body {
   background: radial-gradient(circle at 15% 15%, rgba(255, 107, 0, 0.12) 0%, transparent 40%),
               radial-gradient(circle at 85% 85%, rgba(0, 226, 176, 0.08) 0%, transparent 45%),
               linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%);
-  color: #090909;
-  font-family: 'GT Eesti', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: #0f172a;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'cv02' 1, 'cv03' 1, 'cv04' 1, 'cv11' 1;
+  letter-spacing: -0.012em;
+}
+
+/* Headings Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-sans);
+  letter-spacing: -0.025em;
+  font-weight: 800;
+}
+
+/* Tabular Numeric Data Alignment */
+.font-mono,
+table,
+input[type="number"],
+input[type="date"],
+.tabular-nums {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1, 'zero' 1;
 }
 
 /* Metso Signature Geometry & Badge Utilities */
@@ -24,8 +51,9 @@ body {
 }
 
 .metso-tag {
-  letter-spacing: 1.5px;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+  font-weight: 800;
 }
 
 
