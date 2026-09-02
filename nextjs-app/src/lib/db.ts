@@ -7,12 +7,17 @@ let db: any;
 try {
   // 1. Try better-sqlite3 first
   const BetterDatabase = eval("require")("better-sqlite3");
-  db = new BetterDatabase(dbPath, { timeout: 15000 });
-  db.pragma('journal_mode = WAL');
-  db.pragma('busy_timeout = 15000');
-  db.pragma('synchronous = NORMAL');
-  db.pragma('temp_store = MEMORY');
-  db.pragma('cache_size = -64000');
+  const candidateDb = new BetterDatabase(dbPath, { timeout: 15000 });
+  if (typeof candidateDb.transaction === 'function') {
+    db = candidateDb;
+    db.pragma('journal_mode = WAL');
+    db.pragma('busy_timeout = 15000');
+    db.pragma('synchronous = NORMAL');
+    db.pragma('temp_store = MEMORY');
+    db.pragma('cache_size = -64000');
+  } else {
+    throw new Error("better-sqlite3 instance missing transaction method");
+  }
 } catch (betterErr) {
   try {
     // 2. Seamless fallback to Node.js native node:sqlite (Node 22.5+ / Node 24+)
