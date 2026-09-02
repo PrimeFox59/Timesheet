@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Calendar, Sparkles, CheckCircle2, AlertCircle, RefreshCw, FileSpreadsheet, Download } from 'lucide-react';
+import { Calendar, Sparkles, CheckCircle2, AlertCircle, RefreshCw, FileSpreadsheet, Download, Lock } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 
 interface TimesheetEntryTabProps {
@@ -207,18 +207,6 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
     });
   };
 
-  // Quick action helper: Set 10h Mon-Sat (Sunday 0h)
-  const fillAllWorkdays10h = () => {
-    setRows(prev => prev.map(r => ({
-      ...r,
-      hours: (r.dayName === 'Sunday') ? 0 : 10
-    })));
-  };
-
-  const setAllShift = (targetShift: string) => {
-    setRows(prev => prev.map(r => ({ ...r, shift: targetShift })));
-  };
-
   // Export Metso v2 Template Excel
   const handleExportMetsoTemplate = () => {
     if (!startDate || !user?.id) return;
@@ -240,11 +228,14 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
     return `${String(d).padStart(2, '0')}-${months[dateObj.getMonth()]}-${y}`;
   };
 
+  const currentYearMonth = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+  const isDateEditable = (dateStr: string) => isSuperUser || dateStr.startsWith(currentYearMonth);
+
+  // Allow selecting any past date for viewing; max date is clamped to current month for non-superusers
   const handleStartDateChange = (val: string) => {
     let finalVal = val;
-    if (!isSuperUser && val) {
-      if (val < minAllowedDate) finalVal = minAllowedDate;
-      if (val > maxAllowedDate) finalVal = maxAllowedDate;
+    if (!isSuperUser && val && val > maxAllowedDate) {
+      finalVal = maxAllowedDate;
     }
     setStartDate(finalVal);
     if (endDate && finalVal > endDate) {
@@ -254,14 +245,31 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
 
   const handleEndDateChange = (val: string) => {
     let finalVal = val;
-    if (!isSuperUser && val) {
-      if (val < minAllowedDate) finalVal = minAllowedDate;
-      if (val > maxAllowedDate) finalVal = maxAllowedDate;
+    if (!isSuperUser && val && val > maxAllowedDate) {
+      finalVal = maxAllowedDate;
     }
     setEndDate(finalVal);
     if (startDate && finalVal < startDate) {
       setStartDate(finalVal);
     }
+  };
+
+  // Quick action helpers: only apply to editable active month rows
+  const fillAllWorkdays10h = () => {
+    setRows(prev => prev.map(r => {
+      if (!isDateEditable(r.dateStr)) return r; // preserve past locked rows
+      return {
+        ...r,
+        hours: (r.dayName === 'Sunday') ? 0 : 10
+      };
+    }));
+  };
+
+  const setAllShift = (targetShift: string) => {
+    setRows(prev => prev.map(r => {
+      if (!isDateEditable(r.dateStr)) return r; // preserve past locked rows
+      return { ...r, shift: targetShift };
+    }));
   };
 
   const handleSubmitTimesheet = async (e: React.FormEvent) => {
@@ -271,23 +279,21 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
       return;
     }
 
-    // Validate that non-superusers can only submit dates within current active month
-    if (!isSuperUser) {
-      const currentYM = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
-      const invalidRows = rows.filter(r => !r.dateStr.startsWith(currentYM));
-      if (invalidRows.length > 0) {
-        setMessage({
-          type: 'error',
-          text: `Timesheet submission is locked to the current running month (${currentMonthName} ${currentYear}). Please ensure all selected dates are between ${minAllowedDate} and ${maxAllowedDate}.`
-        });
-        return;
-      }
+    // Filter only editable rows for regular users
+    const validRowsToSubmit = isSuperUser ? rows : rows.filter(r => r.dateStr.startsWith(currentYearMonth));
+
+    if (validRowsToSubmit.length === 0) {
+      setMessage({
+        type: 'error',
+        text: `Viewing past records (Read-Only). You can only edit and submit entries for the current active month (${currentMonthName} ${currentYear}).`
+      });
+      return;
     }
 
     setSubmitting(true);
     setMessage(null);
 
-    const entries = rows.map(r => ({
+    const entries = validRowsToSubmit.map(r => ({
       date: r.dateStr,
       day: r.dayName,
       hours: Number(r.hours) || 0,
@@ -316,7 +322,7 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
       if (data.success) {
         setMessage({
           type: 'success',
-          text: `Timesheet successfully submitted/saved!`
+          text: `Timesheet successfully saved! (${entries.length} active day entries submitted)`
         });
       } else {
         setMessage({ type: 'error', text: data.error || 'Failed to submit timesheet' });
@@ -327,6 +333,9 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
       setSubmitting(false);
     }
   };
+
+  const editableRowsCount = isSuperUser ? rows.length : rows.filter(r => r.dateStr.startsWith(currentYearMonth)).length;
+  const lockedRowsCount = rows.length - editableRowsCount;
 
   return (
     <div className="space-y-5 animate-smooth-fade">
@@ -351,13 +360,12 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
                   Start Date
                 </span>
                 {!isSuperUser && (
-                  <span className="text-[10px] text-amber-700 font-bold">Min: 01/{String(currentMonth + 1).padStart(2, '0')}</span>
+                  <span className="text-[10px] text-slate-400 font-medium">Viewing any past date allowed</span>
                 )}
               </label>
               <input
                 type="date"
                 value={startDate}
-                min={!isSuperUser ? minAllowedDate : undefined}
                 max={!isSuperUser ? maxAllowedDate : undefined}
                 onChange={e => handleStartDateChange(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl text-xs glass-input font-medium"
@@ -371,13 +379,12 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
                   End Date
                 </span>
                 {!isSuperUser && (
-                  <span className="text-[10px] text-amber-700 font-bold">Max: {lastDayOfMonth.getDate()}/{String(currentMonth + 1).padStart(2, '0')}</span>
+                  <span className="text-[10px] text-amber-700 font-bold">Max: {lastDayOfMonth.getDate()}/{String(currentMonth + 1).padStart(2, '0')}/{currentYear}</span>
                 )}
               </label>
               <input
                 type="date"
                 value={endDate}
-                min={!isSuperUser ? (startDate || minAllowedDate) : undefined}
                 max={!isSuperUser ? maxAllowedDate : undefined}
                 onChange={e => handleEndDateChange(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl text-xs glass-input font-medium"
@@ -398,10 +405,22 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
             </div>
 
             {!isSuperUser ? (
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200 shadow-2xs">
-                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                <span>Locked to Running Month: <strong>{currentMonthName} {currentYear}</strong> (01 - {lastDayOfMonth.getDate()})</span>
-              </div>
+              editableRowsCount === 0 ? (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-300 shadow-2xs">
+                  <Lock className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Viewing Past Records: <strong>Read-Only Mode</strong> (Edits locked)</span>
+                </div>
+              ) : lockedRowsCount > 0 ? (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200 shadow-2xs">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  <span>Mixed Range: <strong>{editableRowsCount} Days Editable</strong> (September) &bull; {lockedRowsCount} Past Days (Read-Only)</span>
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span>Active Month: <strong>{currentMonthName} {currentYear}</strong> (Editable)</span>
+                </div>
+              )
             ) : (
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -424,7 +443,7 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
                 Enter Timesheet Details
               </h3>
               <p className="text-[11px] text-slate-500">
-                Unfilled dates default to 0 hrs. Saved entries load automatically. Click Submit Timesheet when ready.
+                Unfilled dates default to 0 hrs. Saved entries load automatically. Past months are in Read-Only view mode.
               </p>
             </div>
 
@@ -491,14 +510,23 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
                 ) : (
                   rows.map((row, rIdx) => {
                     const isWeekend = row.dayName === 'Saturday' || row.dayName === 'Sunday';
+                    const isRowEditable = isDateEditable(row.dateStr);
+
                     return (
                       <tr
                         key={row.dateStr}
-                        className={`hover:bg-orange-50/50 transition ${isWeekend ? 'bg-slate-100/50 text-slate-600' : ''}`}
+                        className={`transition ${!isRowEditable ? 'bg-slate-50/80 text-slate-500' : isWeekend ? 'bg-orange-50/30 text-slate-700 hover:bg-orange-50/60' : 'hover:bg-orange-50/50'}`}
                       >
                         {/* Date Cell */}
                         <td className="px-3 py-2 font-mono text-[11px] font-semibold text-slate-900 whitespace-nowrap">
-                          {row.dateStr}
+                          <div className="flex items-center gap-1.5">
+                            {!isRowEditable && (
+                              <span title="Past Month - Read Only">
+                                <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                              </span>
+                            )}
+                            <span>{row.dateStr}</span>
+                          </div>
                         </td>
 
                         {/* Day Cell */}
@@ -515,10 +543,13 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
                             step="0.5"
                             min="0"
                             max="24"
+                            disabled={!isRowEditable}
                             value={row.hours}
                             onChange={e => handleCellChange(rIdx, 'hours', Number(e.target.value))}
-                            className={`w-20 px-2 py-1 text-center font-bold rounded-lg border focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] ${
-                              row.hours > 0 ? 'bg-white text-slate-900 border-slate-300' : 'bg-slate-50 text-slate-400 border-slate-200'
+                            className={`w-20 px-2 py-1 text-center font-bold rounded-lg border transition ${
+                              !isRowEditable
+                                ? 'bg-slate-100/90 text-slate-500 border-slate-200 cursor-not-allowed'
+                                : row.hours > 0 ? 'bg-white text-slate-900 border-slate-300 focus:border-[#FF6B00]' : 'bg-slate-50 text-slate-400 border-slate-200'
                             }`}
                           />
                         </td>
@@ -530,10 +561,13 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
                             step="0.5"
                             min="0"
                             max="16"
+                            disabled={!isRowEditable}
                             value={row.overtime}
                             onChange={e => handleCellChange(rIdx, 'overtime', Number(e.target.value))}
-                            className={`w-20 px-2 py-1 text-center font-bold rounded-lg border focus:border-[#FF6B00] focus:ring-1 focus:ring-[#FF6B00] ${
-                              row.overtime > 0 ? 'bg-white text-[#FF6B00] border-orange-300' : 'bg-slate-50 text-slate-400 border-slate-200'
+                            className={`w-20 px-2 py-1 text-center font-bold rounded-lg border transition ${
+                              !isRowEditable
+                                ? 'bg-slate-100/90 text-slate-500 border-slate-200 cursor-not-allowed'
+                                : row.overtime > 0 ? 'bg-white text-[#FF6B00] border-orange-300 focus:border-[#FF6B00]' : 'bg-slate-50 text-slate-400 border-slate-200'
                             }`}
                           />
                         </td>
@@ -542,10 +576,15 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
                         {Array.from({ length: numAreas }).map((_, aIdx) => (
                           <td key={aIdx} className="px-2 py-1.5">
                             <select
+                              disabled={!isRowEditable}
                               value={row.areas[aIdx] || (aIdx === 0 ? (areasList[0] || 'CMN') : '')}
                               onChange={e => handleRowAreaChange(rIdx, aIdx, e.target.value)}
-                              className="w-full px-2 py-1 text-xs font-semibold rounded-lg border border-slate-200 bg-white/90 focus:border-[#FF6B00]"
-                              required={aIdx === 0}
+                              className={`w-full px-2 py-1 text-xs font-semibold rounded-lg border transition ${
+                                !isRowEditable
+                                  ? 'bg-slate-100/90 text-slate-500 border-slate-200 cursor-not-allowed'
+                                  : 'bg-white/90 border-slate-200 focus:border-[#FF6B00]'
+                              }`}
+                              required={aIdx === 0 && isRowEditable}
                             >
                               {aIdx > 0 && <option value="">-- None --</option>}
                               {areasList.map(a => (
@@ -558,9 +597,14 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
                         {/* Shift Dropdown */}
                         <td className="px-2 py-1.5">
                           <select
+                            disabled={!isRowEditable}
                             value={row.shift}
                             onChange={e => handleCellChange(rIdx, 'shift', e.target.value)}
-                            className="w-full px-2 py-1 text-xs font-semibold rounded-lg border border-slate-200 bg-white/90 focus:border-[#FF6B00]"
+                            className={`w-full px-2 py-1 text-xs font-semibold rounded-lg border transition ${
+                              !isRowEditable
+                                ? 'bg-slate-100/90 text-slate-500 border-slate-200 cursor-not-allowed'
+                                : 'bg-white/90 border-slate-200 focus:border-[#FF6B00]'
+                            }`}
                           >
                             <option value="Day Shift">Day Shift</option>
                             <option value="Night Shift">Night Shift</option>
@@ -571,10 +615,15 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
                         <td className="px-2 py-1.5">
                           <input
                             type="text"
+                            disabled={!isRowEditable}
                             value={row.remark}
                             onChange={e => handleCellChange(rIdx, 'remark', e.target.value)}
-                            placeholder="Common, Commissioning, etc."
-                            className="w-full px-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-white/90 focus:border-[#FF6B00]"
+                            placeholder={isRowEditable ? "Common, Commissioning, etc." : "Read-only"}
+                            className={`w-full px-2.5 py-1 text-xs rounded-lg border transition ${
+                              !isRowEditable
+                                ? 'bg-slate-100/90 text-slate-500 border-slate-200 cursor-not-allowed'
+                                : 'bg-white/90 border-slate-200 focus:border-[#FF6B00]'
+                            }`}
                           />
                         </td>
                       </tr>
@@ -608,15 +657,24 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
 
               <button
                 type="submit"
-                disabled={submitting || rows.length === 0}
-                className="px-6 py-2.5 rounded-xl text-xs font-bold btn-orange flex items-center gap-2 shadow-md w-full sm:w-auto justify-center transition active:scale-95 cursor-pointer"
+                disabled={submitting || rows.length === 0 || editableRowsCount === 0}
+                className={`px-6 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-md w-full sm:w-auto justify-center transition ${
+                  editableRowsCount === 0
+                    ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
+                    : 'btn-orange active:scale-95 cursor-pointer'
+                }`}
               >
                 {submitting ? (
                   <span>Submitting...</span>
+                ) : editableRowsCount === 0 ? (
+                  <>
+                    <Lock className="w-4 h-4 text-slate-400" />
+                    <span>Read-Only View</span>
+                  </>
                 ) : (
                   <>
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Submit Timesheet</span>
+                    <span>Submit Timesheet ({editableRowsCount} Active Days)</span>
                   </>
                 )}
               </button>
