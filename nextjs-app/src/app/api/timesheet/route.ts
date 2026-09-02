@@ -86,6 +86,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'User ID and entries array are required' }, { status: 400 });
     }
 
+    // Check if submitting user has superuser privileges
+    const uidLower = String(user_id).toLowerCase();
+    let isSuperUser = uidLower === 'prime' || uidLower === 'com116';
+    if (!isSuperUser) {
+      try {
+        const u = db.prepare('SELECT role FROM users WHERE LOWER(id) = LOWER(?)').get(user_id) as any;
+        if (u && u.role && u.role.toLowerCase() === 'superuser') {
+          isSuperUser = true;
+        }
+      } catch (e) {}
+    }
+
+    // If regular user (non-superuser), strictly validate that all entry dates belong to current running month (YYYY-MM)
+    if (!isSuperUser) {
+      const now = new Date();
+      const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      for (const row of entries) {
+        if (!row.date || !String(row.date).startsWith(currentYearMonth)) {
+          return NextResponse.json({
+            error: `Timesheet submission is locked to the current active month (${currentYearMonth}). Date '${row.date}' falls outside this period.`
+          }, { status: 400 });
+        }
+      }
+    }
+
     const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
 
     const transaction = db.transaction((rows: any[]) => {

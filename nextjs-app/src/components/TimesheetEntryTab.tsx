@@ -21,21 +21,39 @@ interface DayRowState {
 }
 
 export default function TimesheetEntryTab({ user, areasList, systemSettings }: TimesheetEntryTabProps) {
-  // Default date range matching Monday of current week to Sunday of current week
-  const getInitialDates = () => {
-    const today = new Date();
-    // Monday = 0, Tuesday = 1, ..., Sunday = 6
-    const dayOfWeek = (today.getDay() + 6) % 7;
-    
-    const monday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - dayOfWeek);
-    const sunday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + (6 - dayOfWeek));
+  const isSuperUser = user?.id?.toLowerCase() === 'prime' || user?.id?.toLowerCase() === 'com116' || user?.role?.toLowerCase() === 'superuser';
 
-    const formatYMD = (d: Date) => {
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const dd = String(d.getDate()).padStart(2, '0');
-      return `${yyyy}-${mm}-${dd}`;
-    };
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth(); // 0-indexed (8 for September)
+  const currentMonthName = today.toLocaleString('en-US', { month: 'long' });
+  const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
+  const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0);
+
+  const formatYMD = (d: Date) => {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const minAllowedDate = formatYMD(firstDayOfMonth);
+  const maxAllowedDate = formatYMD(lastDayOfMonth);
+
+  // Default date range matching Monday of current week to Sunday of current week (clamped to active month)
+  const getInitialDates = () => {
+    const now = new Date();
+    // Monday = 0, Tuesday = 1, ..., Sunday = 6
+    const dayOfWeek = (now.getDay() + 6) % 7;
+    
+    let monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek);
+    let sunday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (6 - dayOfWeek));
+
+    // Clamp within current running month for non-superusers (and for initial clean view)
+    if (!isSuperUser) {
+      if (monday < firstDayOfMonth) monday = firstDayOfMonth;
+      if (sunday > lastDayOfMonth) sunday = lastDayOfMonth;
+    }
 
     return {
       start: formatYMD(monday),
@@ -222,11 +240,48 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
     return `${String(d).padStart(2, '0')}-${months[dateObj.getMonth()]}-${y}`;
   };
 
+  const handleStartDateChange = (val: string) => {
+    let finalVal = val;
+    if (!isSuperUser && val) {
+      if (val < minAllowedDate) finalVal = minAllowedDate;
+      if (val > maxAllowedDate) finalVal = maxAllowedDate;
+    }
+    setStartDate(finalVal);
+    if (endDate && finalVal > endDate) {
+      setEndDate(finalVal);
+    }
+  };
+
+  const handleEndDateChange = (val: string) => {
+    let finalVal = val;
+    if (!isSuperUser && val) {
+      if (val < minAllowedDate) finalVal = minAllowedDate;
+      if (val > maxAllowedDate) finalVal = maxAllowedDate;
+    }
+    setEndDate(finalVal);
+    if (startDate && finalVal < startDate) {
+      setStartDate(finalVal);
+    }
+  };
+
   const handleSubmitTimesheet = async (e: React.FormEvent) => {
     e.preventDefault();
     if (rows.length === 0) {
       setMessage({ type: 'error', text: 'Please select a valid date range with entries.' });
       return;
+    }
+
+    // Validate that non-superusers can only submit dates within current active month
+    if (!isSuperUser) {
+      const currentYM = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+      const invalidRows = rows.filter(r => !r.dateStr.startsWith(currentYM));
+      if (invalidRows.length > 0) {
+        setMessage({
+          type: 'error',
+          text: `Timesheet submission is locked to the current running month (${currentMonthName} ${currentYear}). Please ensure all selected dates are between ${minAllowedDate} and ${maxAllowedDate}.`
+        });
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -290,27 +345,41 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 w-full">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-[#FF6B00]" />
-                Start Date
+              <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-[#FF6B00]" />
+                  Start Date
+                </span>
+                {!isSuperUser && (
+                  <span className="text-[10px] text-amber-700 font-bold">Min: 01/{String(currentMonth + 1).padStart(2, '0')}</span>
+                )}
               </label>
               <input
                 type="date"
                 value={startDate}
-                onChange={e => setStartDate(e.target.value)}
+                min={!isSuperUser ? minAllowedDate : undefined}
+                max={!isSuperUser ? maxAllowedDate : undefined}
+                onChange={e => handleStartDateChange(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl text-xs glass-input font-medium"
                 required
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-[#FF6B00]" />
-                End Date
+              <label className="block text-xs font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-[#FF6B00]" />
+                  End Date
+                </span>
+                {!isSuperUser && (
+                  <span className="text-[10px] text-amber-700 font-bold">Max: {lastDayOfMonth.getDate()}/{String(currentMonth + 1).padStart(2, '0')}</span>
+                )}
               </label>
               <input
                 type="date"
                 value={endDate}
-                onChange={e => setEndDate(e.target.value)}
+                min={!isSuperUser ? (startDate || minAllowedDate) : undefined}
+                max={!isSuperUser ? maxAllowedDate : undefined}
+                onChange={e => handleEndDateChange(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl text-xs glass-input font-medium"
                 required
               />
@@ -319,12 +388,26 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
         </div>
 
         {startDate && endDate && (
-          <div className="text-xs font-bold text-slate-700 pt-1 flex items-center gap-2">
-            <span className="text-slate-500 font-medium">Date Range:</span>
-            <span className="px-2.5 py-1 rounded-lg bg-orange-100/80 text-orange-950 font-mono text-xs border border-orange-200">
-              {formatDateLabel(startDate)} &rarr; {formatDateLabel(endDate)}
-            </span>
-            <span className="text-slate-400 font-normal">({rows.length} days)</span>
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200/80">
+            <div className="text-xs font-bold text-slate-700 flex items-center gap-2">
+              <span className="text-slate-500 font-medium">Date Range:</span>
+              <span className="px-2.5 py-1 rounded-lg bg-orange-100/80 text-orange-950 font-mono text-xs border border-orange-200">
+                {formatDateLabel(startDate)} &rarr; {formatDateLabel(endDate)}
+              </span>
+              <span className="text-slate-400 font-normal">({rows.length} days)</span>
+            </div>
+
+            {!isSuperUser ? (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200 shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                <span>Locked to Running Month: <strong>{currentMonthName} {currentYear}</strong> (01 - {lastDayOfMonth.getDate()})</span>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span>Superuser Mode: Unrestricted Date Selection</span>
+              </div>
+            )}
           </div>
         )}
       </div>
