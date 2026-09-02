@@ -4,13 +4,17 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const encoder = new TextEncoder();
+  let timer: any = null;
+  let unsubscribe: (() => void) | null = null;
 
   const stream = new ReadableStream({
     start(controller) {
       // Send initial connection event
-      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ event: 'connected', data: {} })}\n\n`));
+      try {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ event: 'connected', data: {} })}\n\n`));
+      } catch (e) {}
 
-      const unsubscribe = subscribeRealtimeEvents((msg) => {
+      unsubscribe = subscribeRealtimeEvents((msg) => {
         try {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(msg)}\n\n`));
         } catch (e) {
@@ -19,19 +23,17 @@ export async function GET() {
       });
 
       // Keepalive ping every 15s
-      const timer = setInterval(() => {
+      timer = setInterval(() => {
         try {
           controller.enqueue(encoder.encode(`: keepalive\n\n`));
         } catch (e) {
-          clearInterval(timer);
+          if (timer) clearInterval(timer);
         }
       }, 15000);
-
-      // Clean up on stream close
-      return () => {
-        clearInterval(timer);
-        unsubscribe();
-      };
+    },
+    cancel() {
+      if (timer) clearInterval(timer);
+      if (unsubscribe) unsubscribe();
     }
   });
 
@@ -39,7 +41,8 @@ export async function GET() {
     headers: {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache, no-transform',
-      'Connection': 'keep-alive'
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no'
     }
   });
 }

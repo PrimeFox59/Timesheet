@@ -77,7 +77,21 @@ export async function GET(request: Request) {
     }
 
     // 6. Execute Python Openpyxl Script (Preserves 100% Logo, Styles, Fills, Borders, Fonts, Formulas & Signature)
-    const pythonBin = process.platform === 'win32' ? 'py' : 'python3';
+    let pythonBin = 'python3';
+    if (process.platform === 'win32') {
+      try {
+        execSync('python --version', { stdio: 'ignore' });
+        pythonBin = 'python';
+      } catch (e) {
+        try {
+          execSync('py --version', { stdio: 'ignore' });
+          pythonBin = 'py';
+        } catch (e2) {
+          pythonBin = 'python';
+        }
+      }
+    }
+
     const pythonCmd = `${pythonBin} "${pythonScriptPath}" "${templatePath}" "${outputPath}" "${user.id}" "${user.username}" "${user.role || 'Commissioning Engineer'}" "${monthStr}" "${jsonPath}" "${approvalJsonPath}"`;
 
     execSync(pythonCmd, { encoding: 'utf-8' });

@@ -2,7 +2,7 @@ import { EventEmitter } from 'events';
 
 // Global Event Emitter for Next.js internal real-time broadcasting
 const globalEventEmitter = (global as any).realtimeEmitter || new EventEmitter();
-globalEventEmitter.setMaxListeners(100);
+globalEventEmitter.setMaxListeners(0); // Unlimited listeners for mass concurrent user presence
 (global as any).realtimeEmitter = globalEventEmitter;
 
 export function emitRealtimeEvent(event: string, data: any) {

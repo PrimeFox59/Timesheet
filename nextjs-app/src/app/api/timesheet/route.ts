@@ -98,10 +98,11 @@ export async function POST(request: Request) {
       } catch (e) {}
     }
 
-    // If regular user (non-superuser), strictly validate that all entry dates belong to current running month (YYYY-MM)
+    // If regular user (non-superuser), strictly validate that all entry dates belong to current running month (YYYY-MM in Asia/Jakarta timezone)
     if (!isSuperUser) {
       const now = new Date();
-      const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const jakartaFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit' });
+      const currentYearMonth = jakartaFormatter.format(now); // Always matches Indonesia WIB/WITA (YYYY-MM)
       for (const row of entries) {
         if (!row.date || !String(row.date).startsWith(currentYearMonth)) {
           return NextResponse.json({
