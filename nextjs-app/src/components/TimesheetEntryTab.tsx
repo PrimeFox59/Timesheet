@@ -510,13 +510,13 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
                   </tr>
                 ) : (
                   rows.map((row, rIdx) => {
-                    const isWeekend = row.dayName === 'Saturday' || row.dayName === 'Sunday';
+                    const isSunday = row.dayName === 'Sunday';
                     const isRowEditable = isDateEditable(row.dateStr);
 
                     return (
                       <tr
                         key={row.dateStr}
-                        className={`transition ${!isRowEditable ? 'bg-slate-50/80 text-slate-500' : isWeekend ? 'bg-orange-50/30 text-slate-700 hover:bg-orange-50/60' : 'hover:bg-orange-50/50'}`}
+                        className={`transition ${!isRowEditable ? 'bg-slate-50/80 text-slate-500' : isSunday ? 'bg-orange-50/30 text-slate-700 hover:bg-orange-50/60' : 'hover:bg-orange-50/50'}`}
                       >
                         {/* Date Cell */}
                         <td className="px-3 py-2 font-mono text-[11px] font-semibold text-slate-900 whitespace-nowrap">
@@ -532,7 +532,7 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
 
                         {/* Day Cell */}
                         <td className="px-3 py-2 whitespace-nowrap">
-                          <span className={`text-[11px] ${isWeekend ? 'font-bold text-amber-700' : 'text-slate-700'}`}>
+                          <span className={`text-[11px] ${isSunday ? 'font-bold text-amber-700' : 'font-medium text-slate-700'}`}>
                             {row.dayName}
                           </span>
                         </td>
