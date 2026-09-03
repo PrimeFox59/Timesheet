@@ -23,8 +23,8 @@ export async function GET(request: Request) {
       params.push(endDate);
     }
     if (username && username !== 'All') {
-      whereClause += ' AND username = ?';
-      params.push(username);
+      whereClause += ' AND (username = ? OR user_id = ?)';
+      params.push(username, username);
     }
     if (shift && shift !== 'All') {
       whereClause += ' AND shift = ?';

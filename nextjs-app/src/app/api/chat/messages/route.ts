@@ -170,3 +170,46 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const messageId = searchParams.get('id');
+    const userId = searchParams.get('userId') || searchParams.get('user_id');
+
+    if (!messageId || !userId) {
+      return NextResponse.json({ error: 'Message ID and User ID are required' }, { status: 400 });
+    }
+
+    const message = db.prepare('SELECT * FROM chat_messages WHERE id = ?').get(messageId) as any;
+    if (!message) {
+      return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+    }
+
+    const user = db.prepare('SELECT id, role FROM users WHERE LOWER(id) = LOWER(?)').get(userId) as any;
+    const isSuperUser = user && (user.role?.toLowerCase() === 'superuser' || user.id.toLowerCase() === 'prime');
+
+    // Users can delete their own messages; Superusers can delete any message
+    if (message.sender_id.toLowerCase() !== userId.toLowerCase() && !isSuperUser) {
+      return NextResponse.json({ error: 'Forbidden: You can only delete your own messages' }, { status: 403 });
+    }
+
+    db.prepare('DELETE FROM chat_messages WHERE id = ?').run(messageId);
+
+    // Broadcast deletion realtime event so all clients update instantly
+    await broadcastRealtimeEvent('chat_message_deleted', {
+      id: Number(messageId),
+      sender_id: message.sender_id,
+      recipient_id: message.recipient_id
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Message deleted successfully',
+      id: Number(messageId)
+    });
+  } catch (error: any) {
+    console.error('DELETE /api/chat/messages error:', error);
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
+  }
+}

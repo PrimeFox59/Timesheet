@@ -26,7 +26,8 @@ import {
   Download,
   Loader2,
   AlertCircle,
-  Clock
+  Clock,
+  Trash2
 } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 
@@ -102,10 +103,42 @@ export default function RealtimeChatWidget({
   const [previewModalImage, setPreviewModalImage] = useState<{ url: string; downloadUrl?: string; name: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Typewriter Looping Effect State for Callout
   const [typewriterText, setTypewriterText] = useState('');
+  const [deletingMsgId, setDeletingMsgId] = useState<number | string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Window event listener for realtime message deletion across all tabs
+  useEffect(() => {
+    const handleChatDeletedEvent = (e: any) => {
+      const deletedId = e.detail?.id;
+      if (deletedId) {
+        setMessages((prev) => prev.filter((m) => String(m.id) !== String(deletedId)));
+      }
+    };
+    window.addEventListener('chat_message_deleted', handleChatDeletedEvent);
+    return () => window.removeEventListener('chat_message_deleted', handleChatDeletedEvent);
+  }, []);
+
+  const handleDeleteMessage = async (msgId: number | string) => {
+    if (!window.confirm('Delete this message for everyone?')) return;
+    setDeletingMsgId(msgId);
+    try {
+      const res = await fetch(apiUrl(`/api/chat/messages?id=${msgId}&userId=${encodeURIComponent(currentUser?.id || '')}`), {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMessages((prev) => prev.filter((m) => String(m.id) !== String(msgId)));
+      } else {
+        alert(data.error || 'Failed to delete message');
+      }
+    } catch (e) {
+      console.error('Failed to delete message:', e);
+    } finally {
+      setDeletingMsgId(null);
+    }
+  };
 
   // Fetch recent conversations
   const fetchRecentChats = async () => {
@@ -257,6 +290,11 @@ export default function RealtimeChatWidget({
                 setLatestMessageText(incomingMsg.message || (incomingMsg.file_name ? `📎 ${incomingMsg.file_name}` : 'Sent an attachment'));
                 if (onNewMessageIncoming) onNewMessageIncoming(incomingMsg);
               }
+            }
+          } else if (event === 'chat_message_deleted') {
+            const deletedId = data?.id;
+            if (deletedId) {
+              setMessages(prev => prev.filter(m => String(m.id) !== String(deletedId)));
             }
           } else if (event === 'chat_cleared' || (event === 'user_updated' && data?.action === 'reset')) {
             setMessages([]);
@@ -1010,6 +1048,8 @@ export default function RealtimeChatWidget({
                 ) : (
                   messages.map((msg, index) => {
                     const isMe = msg.sender_id === currentUser?.id;
+                    const isSuperUser = currentUser?.role?.toLowerCase() === 'superuser' || currentUser?.id?.toLowerCase() === 'prime';
+                    const canDelete = isMe || isSuperUser;
                     const prevMsg = index > 0 ? messages[index - 1] : null;
                     const showSenderHeader = !prevMsg || prevMsg.sender_id !== msg.sender_id;
 
@@ -1018,7 +1058,7 @@ export default function RealtimeChatWidget({
                     return (
                       <div
                         key={msg.id || index}
-                        className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} space-y-1 animate-in fade-in slide-in-from-bottom-1 duration-150`}
+                        className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} space-y-1 animate-in fade-in slide-in-from-bottom-1 duration-150 group/msg`}
                       >
                         {showSenderHeader && !isMe && (
                           <div className="flex items-center gap-1.5 px-1">
@@ -1034,84 +1074,103 @@ export default function RealtimeChatWidget({
                           </div>
                         )}
 
-                        <div
-                          className={`max-w-[88%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed break-words shadow-md transition-all ${
-                            isMe
-                              ? 'bg-gradient-to-r from-[#FF6B00] via-[#FF7A1A] to-[#E05A00] text-white rounded-br-xs shadow-orange-950/40'
-                              : 'bg-slate-900/90 backdrop-blur-md text-slate-100 border border-slate-800/80 rounded-bl-xs shadow-slate-950/50'
-                          }`}
-                        >
-                          {/* Attached Photo Display */}
-                          {isImg && (
-                            <div className="mb-2 relative group/img overflow-hidden rounded-xl bg-black/30 border border-white/15">
-                              <img
-                                src={getFileInlinePreviewUrl(msg.file_url, msg.file_name)}
-                                alt={msg.file_name || 'Attached Photo'}
-                                className="max-h-52 w-full object-cover rounded-xl cursor-pointer hover:scale-[1.02] transition-transform duration-200"
-                                onClick={() => setPreviewModalImage({ 
-                                  url: getFileInlinePreviewUrl(msg.file_url, msg.file_name), 
-                                  downloadUrl: getFileDownloadUrl(msg.file_url, msg.file_name), 
-                                  name: msg.file_name || 'photo.png' 
-                                })}
-                                loading="lazy"
-                              />
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover/img:opacity-100 transition-opacity flex items-end justify-between p-2">
-                                <span className="text-[10px] text-white truncate max-w-[70%] font-medium drop-shadow-md">{msg.file_name}</span>
+                        <div className={`flex items-center gap-1.5 max-w-full ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                          <div
+                            className={`max-w-[88%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed break-words shadow-md transition-all ${
+                              isMe
+                                ? 'bg-gradient-to-r from-[#FF6B00] via-[#FF7A1A] to-[#E05A00] text-white rounded-br-xs shadow-orange-950/40'
+                                : 'bg-slate-900/90 backdrop-blur-md text-slate-100 border border-slate-800/80 rounded-bl-xs shadow-slate-950/50'
+                            }`}
+                          >
+                            {/* Attached Photo Display */}
+                            {isImg && (
+                              <div className="mb-2 relative group/img overflow-hidden rounded-xl bg-black/30 border border-white/15">
+                                <img
+                                  src={getFileInlinePreviewUrl(msg.file_url, msg.file_name)}
+                                  alt={msg.file_name || 'Attached Photo'}
+                                  className="max-h-52 w-full object-cover rounded-xl cursor-pointer hover:scale-[1.02] transition-transform duration-200"
+                                  onClick={() => setPreviewModalImage({ 
+                                    url: getFileInlinePreviewUrl(msg.file_url, msg.file_name), 
+                                    downloadUrl: getFileDownloadUrl(msg.file_url, msg.file_name), 
+                                    name: msg.file_name || 'photo.png' 
+                                  })}
+                                  loading="lazy"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover/img:opacity-100 transition-opacity flex items-end justify-between p-2">
+                                  <span className="text-[10px] text-white truncate max-w-[70%] font-medium drop-shadow-md">{msg.file_name}</span>
+                                  <a
+                                    href={getFileDownloadUrl(msg.file_url, msg.file_name)}
+                                    download={msg.file_name || 'photo.png'}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="p-1 rounded-lg bg-black/60 hover:bg-[#FF6B00] text-white transition drop-shadow-md cursor-pointer"
+                                    title="Download Photo"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                  </a>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Attached Document/File Display */}
+                            {msg.file_url && !isImg && (
+                              <div className={`mb-2 p-2.5 rounded-xl border flex items-center justify-between gap-2.5 transition-all ${
+                                isMe 
+                                  ? 'bg-black/25 border-white/20 text-white' 
+                                  : 'bg-slate-950/80 border-slate-700/80 text-slate-100'
+                              }`}>
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  <div className="w-8 h-8 rounded-lg bg-orange-500/20 text-orange-300 border border-orange-500/30 flex items-center justify-center shrink-0">
+                                    {React.createElement(getFileIcon(msg.file_type, msg.file_name), { className: 'w-4 h-4' })}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="text-xs font-bold truncate leading-tight">{msg.file_name || 'Attachment'}</div>
+                                    <div className="text-[10px] opacity-75 font-mono mt-0.5">{formatFileSize(msg.file_size)}</div>
+                                  </div>
+                                </div>
                                 <a
                                   href={getFileDownloadUrl(msg.file_url, msg.file_name)}
-                                  download={msg.file_name || 'photo.png'}
+                                  download={msg.file_name || 'attachment'}
                                   target="_blank"
                                   rel="noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="p-1 rounded-lg bg-black/60 hover:bg-[#FF6B00] text-white transition drop-shadow-md cursor-pointer"
-                                  title="Download Photo"
+                                  className="p-1.5 rounded-lg bg-white/15 hover:bg-[#FF6B00] text-white transition shrink-0 cursor-pointer"
+                                  title="Download File"
                                 >
                                   <Download className="w-3.5 h-3.5" />
                                 </a>
                               </div>
+                            )}
+
+                            {/* Message Text */}
+                            {msg.message && <p className="font-sans text-[12px] whitespace-pre-wrap">{msg.message}</p>}
+
+                            <div
+                              className={`text-[9px] font-mono mt-1 flex items-center justify-end gap-1 ${
+                                isMe ? 'text-orange-100' : 'text-slate-400'
+                              }`}
+                            >
+                              <span>{msg.timestamp?.substring(11, 16) || ''}</span>
+                              {isMe && <CheckCheck className="w-3 h-3 text-orange-200" />}
                             </div>
-                          )}
-
-                          {/* Attached Document/File Display */}
-                          {msg.file_url && !isImg && (
-                            <div className={`mb-2 p-2.5 rounded-xl border flex items-center justify-between gap-2.5 transition-all ${
-                              isMe 
-                                ? 'bg-black/25 border-white/20 text-white' 
-                                : 'bg-slate-950/80 border-slate-700/80 text-slate-100'
-                            }`}>
-                              <div className="flex items-center gap-2 min-w-0 flex-1">
-                                <div className="w-8 h-8 rounded-lg bg-orange-500/20 text-orange-300 border border-orange-500/30 flex items-center justify-center shrink-0">
-                                  {React.createElement(getFileIcon(msg.file_type, msg.file_name), { className: 'w-4 h-4' })}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div className="text-xs font-bold truncate leading-tight">{msg.file_name || 'Attachment'}</div>
-                                  <div className="text-[10px] opacity-75 font-mono mt-0.5">{formatFileSize(msg.file_size)}</div>
-                                </div>
-                              </div>
-                              <a
-                                href={getFileDownloadUrl(msg.file_url, msg.file_name)}
-                                download={msg.file_name || 'attachment'}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="p-1.5 rounded-lg bg-white/15 hover:bg-[#FF6B00] text-white transition shrink-0 cursor-pointer"
-                                title="Download File"
-                              >
-                                <Download className="w-3.5 h-3.5" />
-                              </a>
-                            </div>
-                          )}
-
-                          {/* Message Text */}
-                          {msg.message && <p className="font-sans text-[12px] whitespace-pre-wrap">{msg.message}</p>}
-
-                          <div
-                            className={`text-[9px] font-mono mt-1 flex items-center justify-end gap-1 ${
-                              isMe ? 'text-orange-100' : 'text-slate-400'
-                            }`}
-                          >
-                            <span>{msg.timestamp?.substring(11, 16) || ''}</span>
-                            {isMe && <CheckCheck className="w-3 h-3 text-orange-200" />}
                           </div>
+
+                          {/* Delete Message Action Button */}
+                          {canDelete && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteMessage(msg.id)}
+                              disabled={deletingMsgId === msg.id}
+                              className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-1.5 rounded-xl bg-slate-800/80 hover:bg-rose-600/30 text-slate-400 hover:text-rose-300 border border-slate-700/60 shadow-xs cursor-pointer shrink-0"
+                              title={isMe ? 'Delete message for everyone' : 'Delete message (Superuser)'}
+                            >
+                              {deletingMsgId === msg.id ? (
+                                <Loader2 className="w-3 h-3 animate-spin text-rose-400" />
+                              ) : (
+                                <Trash2 className="w-3 h-3" />
+                              )}
+                            </button>
+                          )}
                         </div>
                       </div>
                     );

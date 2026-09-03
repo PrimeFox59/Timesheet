@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Search, Filter, Calendar, Clock, User, MapPin, RefreshCw, BarChart2, Layers } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Search, Filter, Calendar, Clock, User, MapPin, RefreshCw, BarChart2, Layers, ShieldCheck, Lock } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 
 interface ActivityLogTabProps {
@@ -11,6 +11,10 @@ interface ActivityLogTabProps {
 }
 
 export default function ActivityLogTab({ currentUser, usersList, areasList }: ActivityLogTabProps) {
+  const isSuperUser = currentUser?.role?.toLowerCase() === 'superuser' || currentUser?.id?.toLowerCase() === 'prime';
+  const isDirector = currentUser?.role?.toLowerCase().includes('director');
+  const canViewAllUsers = isSuperUser || isDirector;
+
   // Calculate current week running: Monday to Sunday (matching TimesheetEntryTab)
   const getInitialDates = () => {
     const today = new Date();
@@ -36,7 +40,10 @@ export default function ActivityLogTab({ currentUser, usersList, areasList }: Ac
   const [startDate, setStartDate] = useState(initialDates.start);
   const [endDate, setEndDate] = useState(initialDates.end);
 
-  const [selectedUser, setSelectedUser] = useState('All');
+  // Default automatically to currentUser's username
+  const [selectedUser, setSelectedUser] = useState(currentUser?.username || '');
+  const hasInitializedUserRef = useRef(false);
+
   const [selectedShift, setSelectedShift] = useState('All');
   const [selectedArea, setSelectedArea] = useState('All');
   const [limit, setLimit] = useState<number>(100);
@@ -45,16 +52,34 @@ export default function ActivityLogTab({ currentUser, usersList, areasList }: Ac
   const [summary, setSummary] = useState({ totalEntries: 0, totalHours: 0, totalOvertime: 0, uniqueUsers: 0 });
   const [loading, setLoading] = useState(false);
 
-  const fetchLogs = async (customLimit?: number) => {
+  // Automatically scope and set user on initial mount or when currentUser updates
+  useEffect(() => {
+    if (currentUser?.username) {
+      if (!canViewAllUsers) {
+        setSelectedUser(currentUser.username);
+      } else if (!hasInitializedUserRef.current) {
+        setSelectedUser(currentUser.username);
+        hasInitializedUserRef.current = true;
+      }
+    }
+  }, [currentUser, canViewAllUsers]);
+
+  const fetchLogs = async (customLimit?: number, overrideUser?: string) => {
     setLoading(true);
     try {
       const activeLimit = customLimit || limit;
+      const targetUser = overrideUser !== undefined
+        ? overrideUser
+        : (canViewAllUsers ? selectedUser : (currentUser?.username || selectedUser));
+
       const query = new URLSearchParams();
       if (startDate) query.append('startDate', startDate);
       if (endDate) query.append('endDate', endDate);
-      if (selectedUser) query.append('username', selectedUser);
-      if (selectedShift) query.append('shift', selectedShift);
-      if (selectedArea) query.append('area', selectedArea);
+      if (targetUser && targetUser !== 'All') {
+        query.append('username', targetUser);
+      }
+      if (selectedShift && selectedShift !== 'All') query.append('shift', selectedShift);
+      if (selectedArea && selectedArea !== 'All') query.append('area', selectedArea);
       query.append('limit', String(activeLimit));
 
       const res = await fetch(apiUrl(`/api/activity-log?${query.toString()}`));
@@ -72,8 +97,12 @@ export default function ActivityLogTab({ currentUser, usersList, areasList }: Ac
   };
 
   useEffect(() => {
-    fetchLogs();
-  }, []);
+    if (currentUser?.username) {
+      fetchLogs(undefined, canViewAllUsers ? currentUser.username : currentUser.username);
+    } else {
+      fetchLogs();
+    }
+  }, [currentUser?.username]);
 
   const handleLoadMore = () => {
     const newLimit = limit + 100;
@@ -182,16 +211,44 @@ export default function ActivityLogTab({ currentUser, usersList, areasList }: Ac
           </div>
 
           <div>
-            <label className="block text-[10px] font-semibold text-slate-600 mb-1">User</label>
+            <label className="block text-[10px] font-semibold text-slate-600 mb-1 flex items-center justify-between">
+              <span>User Filter</span>
+              {!canViewAllUsers ? (
+                <span className="text-[9px] text-amber-700 font-mono flex items-center gap-0.5">
+                  <Lock className="w-2.5 h-2.5" /> My Data
+                </span>
+              ) : (
+                <span className="text-[9px] text-emerald-700 font-mono flex items-center gap-0.5">
+                  <ShieldCheck className="w-2.5 h-2.5" /> All Access
+                </span>
+              )}
+            </label>
             <select
-              value={selectedUser}
-              onChange={e => setSelectedUser(e.target.value)}
-              className="w-full px-2.5 py-1.5 rounded-xl text-xs glass-input font-medium"
+              value={selectedUser || currentUser?.username || ''}
+              onChange={e => {
+                if (canViewAllUsers) {
+                  setSelectedUser(e.target.value);
+                }
+              }}
+              disabled={!canViewAllUsers}
+              className={`w-full px-2.5 py-1.5 rounded-xl text-xs glass-input font-medium transition ${
+                !canViewAllUsers
+                  ? 'bg-slate-100/90 text-slate-700 font-semibold border-amber-500/30 cursor-not-allowed'
+                  : 'cursor-pointer'
+              }`}
             >
-              <option value="All">All Users</option>
-              {usersList.map(u => (
-                <option key={u.id} value={u.username}>{u.username}</option>
-              ))}
+              {canViewAllUsers && <option value="All">All Users</option>}
+              {canViewAllUsers ? (
+                usersList.map(u => (
+                  <option key={u.id} value={u.username}>
+                    {u.username} {u.username === currentUser?.username ? '(Me)' : `(${u.id})`}
+                  </option>
+                ))
+              ) : (
+                <option value={currentUser?.username || ''}>
+                  {currentUser?.username} ({currentUser?.id}) - My Log
+                </option>
+              )}
             </select>
           </div>
 
