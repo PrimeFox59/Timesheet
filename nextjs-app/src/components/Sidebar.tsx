@@ -75,12 +75,11 @@ export default function Sidebar({
     ...(isSuperUser || (isDirector && systemSettings?.menu_user_management !== false) ? [{
       id: 'user_management',
       title: 'USER MANAGEMENT',
-      desc: 'User directory, master edit & profile preferences',
+      desc: 'User directory & master edit controls',
       icon: Users,
       subTabs: [
         { id: 'user_directory', label: 'User Directory', icon: Users },
-        ...(isSiteAdmin ? [{ id: 'master_edit', label: 'Master Edit', icon: Database }] : []),
-        { id: 'user_settings', label: 'User Settings', icon: Sliders }
+        ...(isSiteAdmin ? [{ id: 'master_edit', label: 'Master Edit', icon: Database }] : [])
       ]
     }] : []),
     ...(isSuperUser || isDirector || (systemSettings?.menu_audit_log !== false && systemSettings?.enable_audit_log !== false) ? [{

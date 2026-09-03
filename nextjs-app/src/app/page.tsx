@@ -602,16 +602,6 @@ export default function Home() {
                       <span>Master Edit</span>
                     </button>
                   )}
-
-                  <button
-                    onClick={() => changeSubTab('user_settings')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
-                      activeSubTab === 'user_settings' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
-                    }`}
-                  >
-                    <Sliders className="w-4 h-4" />
-                    <span>User Settings</span>
-                  </button>
                 </>
               )}
 
