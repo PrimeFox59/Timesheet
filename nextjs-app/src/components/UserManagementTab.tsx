@@ -520,6 +520,7 @@ export default function UserManagementTab({ usersList, currentUser, onRefreshUse
                     onChange={e => setFormData({ ...formData, number_of_areas: Number(e.target.value) })}
                     className="w-full px-3 py-2 rounded-xl glass-input font-bold"
                   >
+                    <option value={1}>1 Column</option>
                     <option value={2}>2 Columns</option>
                     <option value={3}>3 Columns</option>
                     <option value={4}>4 Columns</option>
@@ -658,6 +659,7 @@ export default function UserManagementTab({ usersList, currentUser, onRefreshUse
                     onChange={e => setFormData({ ...formData, number_of_areas: Number(e.target.value) })}
                     className="w-full px-3 py-2 rounded-xl glass-input font-bold"
                   >
+                    <option value={1}>1 Column</option>
                     <option value={2}>2 Columns</option>
                     <option value={3}>3 Columns</option>
                     <option value={4}>4 Columns</option>

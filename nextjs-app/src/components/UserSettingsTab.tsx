@@ -14,8 +14,28 @@ export default function UserSettingsTab({ currentUser, areasList, onUpdateUser }
   // Preferences form state
   const [username, setUsername] = useState(currentUser?.username || '');
   const [preferredShift, setPreferredShift] = useState(currentUser?.preferred_shift || 'Day Shift');
-  const [numAreas, setNumAreas] = useState<number>(currentUser?.number_of_areas || 2);
-  const [preferredArea, setPreferredArea] = useState(currentUser?.preferred_areas || 'CMN');
+  const [numAreas, setNumAreas] = useState<number>(currentUser?.number_of_areas !== undefined ? Number(currentUser.number_of_areas) : 2);
+
+  // Parse preferred areas into array of 4 items for columns 1, 2, 3, 4
+  const parsePrefAreas = (prefStr: string): string[] => {
+    const raw = (prefStr || '').split(',').map((s: string) => s.trim());
+    return [
+      raw[0] || (areasList[0] || 'CMN'),
+      raw[1] || '',
+      raw[2] || '',
+      raw[3] || ''
+    ];
+  };
+
+  const [columnAreas, setColumnAreas] = useState<string[]>(() => parsePrefAreas(currentUser?.preferred_areas));
+
+  const handleSetColumnArea = (colIdx: number, area: string) => {
+    setColumnAreas(prev => {
+      const next = [...prev];
+      next[colIdx] = area;
+      return next;
+    });
+  };
 
   const [savingPrefs, setSavingPrefs] = useState(false);
   const [prefMsg, setPrefMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -25,10 +45,11 @@ export default function UserSettingsTab({ currentUser, areasList, onUpdateUser }
     setSavingPrefs(true);
     setPrefMsg(null);
 
+    const finalPrefAreas = columnAreas.slice(0, numAreas).join(',');
+
     try {
       const res = await fetch(apiUrl('/api/user/settings'), {
         method: 'POST',
-
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'update_preferences',
@@ -36,7 +57,7 @@ export default function UserSettingsTab({ currentUser, areasList, onUpdateUser }
           username: username.trim(),
           preferred_shift: preferredShift,
           number_of_areas: numAreas,
-          preferred_areas: preferredArea
+          preferred_areas: finalPrefAreas
         })
       });
 
@@ -49,7 +70,7 @@ export default function UserSettingsTab({ currentUser, areasList, onUpdateUser }
             username: username.trim(),
             preferred_shift: preferredShift,
             number_of_areas: numAreas,
-            preferred_areas: preferredArea
+            preferred_areas: finalPrefAreas
           });
         }
       } else {
@@ -127,21 +148,21 @@ export default function UserSettingsTab({ currentUser, areasList, onUpdateUser }
             {/* Number of Area Columns */}
             <div>
               <label className="block font-bold text-slate-700 mb-1">
-                Number of Area Columns in Entry UI ({numAreas} Columns)
+                Number of Area Columns in Entry UI ({numAreas} {numAreas === 1 ? 'Column' : 'Columns'})
               </label>
-              <div className="grid grid-cols-3 gap-2 mt-1.5">
-                {[2, 3, 4].map(n => (
+              <div className="grid grid-cols-4 gap-2 mt-1.5">
+                {[1, 2, 3, 4].map(n => (
                   <button
                     key={n}
                     type="button"
                     onClick={() => setNumAreas(n)}
-                    className={`py-2 rounded-xl text-xs font-bold transition border ${
+                    className={`py-2 rounded-xl text-xs font-bold transition border cursor-pointer active:scale-95 ${
                       numAreas === n
                         ? 'btn-orange shadow-md border-transparent'
                         : 'bg-white/60 text-slate-700 border-slate-200 hover:bg-white'
                     }`}
                   >
-                    {n} Columns
+                    {n} {n === 1 ? 'Column' : 'Columns'}
                   </button>
                 ))}
               </div>
@@ -149,26 +170,108 @@ export default function UserSettingsTab({ currentUser, areasList, onUpdateUser }
 
             {/* Preferred Work Areas */}
             <div>
-              <label className="block font-bold text-slate-700 mb-1.5">Preferred Work Areas</label>
-              <div className="flex flex-wrap gap-2">
-                {areasList.map(area => {
-                  const isSelected = preferredArea === area;
-                  return (
-                    <button
-                      key={area}
-                      type="button"
-                      onClick={() => setPreferredArea(area)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition border ${
-                        isSelected
-                          ? 'bg-gradient-to-r from-[#FF6B00] to-[#E05B00] text-white border-transparent shadow-sm'
-                          : 'bg-white/60 text-slate-700 border-slate-200 hover:bg-white'
-                      }`}
-                    >
-                      {area}
-                    </button>
-                  );
-                })}
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block font-bold text-slate-700">
+                  {numAreas === 1 ? 'Preferred Work Area' : 'Preferred Work Area per Column'}
+                </label>
+                <span className="text-[10px] font-semibold text-slate-500">
+                  {numAreas === 1 ? 'Choose default area for entry' : `Configure default area for each of your ${numAreas} columns`}
+                </span>
               </div>
+
+              {numAreas === 1 ? (
+                /* Single Column UI */
+                <div className="p-4 rounded-2xl bg-white/70 border border-slate-200/90 shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-[#FF6B00]" />
+                      Column 1 (Area 1)
+                    </span>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-orange-50 text-[#FF6B00] border border-orange-200">
+                      Default: {columnAreas[0] || 'CMN'}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {areasList.map(area => {
+                      const isSelected = (columnAreas[0] || 'CMN') === area;
+                      return (
+                        <button
+                          key={area}
+                          type="button"
+                          onClick={() => handleSetColumnArea(0, area)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-extrabold transition border cursor-pointer active:scale-95 ${
+                            isSelected
+                              ? 'bg-gradient-to-r from-[#FF6B00] to-[#E05B00] text-white border-transparent shadow-sm'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-orange-50/50 hover:border-orange-200'
+                          }`}
+                        >
+                          {area}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                /* Multi-Column Grid UI */
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {Array.from({ length: numAreas }).map((_, colIdx) => {
+                    const selectedArea = columnAreas[colIdx] || '';
+                    return (
+                      <div
+                        key={colIdx}
+                        className="p-3.5 rounded-2xl bg-white/70 border border-slate-200/90 shadow-2xs space-y-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-[#FF6B00]" />
+                            Column {colIdx + 1} (Area {colIdx + 1})
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                            selectedArea 
+                              ? 'bg-orange-50 text-[#FF6B00] border border-orange-200' 
+                              : 'bg-slate-100 text-slate-500'
+                          }`}>
+                            {selectedArea ? `Default: ${selectedArea}` : 'None'}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {colIdx > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => handleSetColumnArea(colIdx, '')}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition border cursor-pointer active:scale-95 ${
+                                !selectedArea
+                                  ? 'bg-slate-800 text-white border-transparent shadow-xs'
+                                  : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                              }`}
+                            >
+                              None
+                            </button>
+                          )}
+                          {areasList.map(area => {
+                            const isSelected = selectedArea === area;
+                            return (
+                              <button
+                                key={area}
+                                type="button"
+                                onClick={() => handleSetColumnArea(colIdx, area)}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition border cursor-pointer active:scale-95 ${
+                                  isSelected
+                                    ? 'bg-[#FF6B00] text-white border-transparent shadow-xs'
+                                    : 'bg-white text-slate-700 border-slate-200 hover:bg-orange-50/50 hover:border-orange-200'
+                                }`}
+                              >
+                                {area}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Save Button */}

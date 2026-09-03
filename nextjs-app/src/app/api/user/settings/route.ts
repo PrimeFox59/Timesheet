@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { getWibTimestamp } from '@/lib/dateUtils';
 
-export async function PUT(request: Request) {
+async function handleSettingsUpdate(request: Request) {
   try {
     const body = await request.json();
     const {
@@ -11,6 +11,7 @@ export async function PUT(request: Request) {
       old_password,
       new_password,
       new_username,
+      username,
       phone,
       email,
       avatar,
@@ -55,9 +56,10 @@ export async function PUT(request: Request) {
       return NextResponse.json({ success: true, message: 'Password updated successfully', user: updatedUser });
     }
 
-    if (action === 'update_profile') {
-      if (new_username !== undefined && new_username !== user.username) {
-        db.prepare('UPDATE users SET username = ? WHERE id = ?').run(new_username, user_id);
+    if (action === 'update_profile' || action === 'update_preferences') {
+      const targetUsername = new_username !== undefined ? new_username : username;
+      if (targetUsername !== undefined && targetUsername.trim() !== '' && targetUsername !== user.username) {
+        db.prepare('UPDATE users SET username = ? WHERE id = ?').run(targetUsername.trim(), user_id);
       }
       if (phone !== undefined) {
         db.prepare('UPDATE users SET phone = ? WHERE id = ?').run(phone, user_id);
@@ -74,18 +76,23 @@ export async function PUT(request: Request) {
       if (preferred_areas !== undefined) {
         db.prepare('UPDATE users SET preferred_areas = ? WHERE id = ?').run(preferred_areas, user_id);
       }
-      if (number_of_areas) {
-        db.prepare('UPDATE users SET number_of_areas = ? WHERE id = ?').run(number_of_areas, user_id);
+      if (number_of_areas !== undefined) {
+        const num = Math.max(1, Math.min(4, Number(number_of_areas) || 2));
+        db.prepare('UPDATE users SET number_of_areas = ? WHERE id = ?').run(num, user_id);
       }
+
+      const logDesc = action === 'update_preferences' 
+        ? 'Updated work preferences and layout settings.' 
+        : 'Updated user profile information.';
 
       db.prepare(`
         INSERT INTO audit_log (timestamp, user_id, username, action, description, status)
         VALUES (?, ?, ?, ?, ?, ?)
-      `).run(timestamp, user.id, user.username, 'User Settings Update', 'Updated user profile information.', 'Success');
+      `).run(timestamp, user.id, targetUsername || user.username, 'User Settings Update', logDesc, 'Success');
 
       const updatedUser = db.prepare('SELECT id, username, role, grade, preferred_areas, preferred_shift, number_of_areas, phone, email, avatar, face_descriptor, face_photo, face_registered_at FROM users WHERE id = ?').get(user_id);
 
-      return NextResponse.json({ success: true, message: 'Profile updated successfully', user: updatedUser });
+      return NextResponse.json({ success: true, message: 'Preferences updated successfully', user: updatedUser });
     }
 
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
@@ -93,5 +100,13 @@ export async function PUT(request: Request) {
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
+}
+
+export async function PUT(request: Request) {
+  return handleSettingsUpdate(request);
+}
+
+export async function POST(request: Request) {
+  return handleSettingsUpdate(request);
 }
 

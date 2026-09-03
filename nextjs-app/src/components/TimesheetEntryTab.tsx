@@ -66,11 +66,10 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
   const [startDate, setStartDate] = useState(initialDates.start);
   const [endDate, setEndDate] = useState(initialDates.end);
 
-  const numAreas = user?.number_of_areas || 2;
+  const numAreas = user?.number_of_areas !== undefined ? Math.max(1, Math.min(4, Number(user.number_of_areas))) : 2;
   const initialPrefAreas = (user?.preferred_areas || '')
     .split(',')
-    .map((s: string) => s.trim())
-    .filter(Boolean);
+    .map((s: string) => s.trim());
 
   const getInitialAreas = () => {
     const list: string[] = [];
@@ -144,7 +143,7 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
               if (i === 0) {
                 savedAreas.push(rawSaved[0] || initialPrefAreas[0] || areasList[0] || 'CMN');
               } else {
-                savedAreas.push(rawSaved[i] || '');
+                savedAreas.push(rawSaved[i] || initialPrefAreas[i] || '');
               }
             }
             newRows.push({
