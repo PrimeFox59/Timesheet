@@ -7,18 +7,32 @@ export async function GET() {
   let timer: any = null;
   let unsubscribe: (() => void) | null = null;
 
+  const cleanup = () => {
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+    if (unsubscribe) {
+      unsubscribe();
+      unsubscribe = null;
+    }
+  };
+
   const stream = new ReadableStream({
     start(controller) {
       // Send initial connection event
       try {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ event: 'connected', data: {} })}\n\n`));
-      } catch (e) {}
+      } catch (e) {
+        cleanup();
+        return;
+      }
 
       unsubscribe = subscribeRealtimeEvents((msg) => {
         try {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(msg)}\n\n`));
         } catch (e) {
-          // Controller might be closed
+          cleanup();
         }
       });
 
@@ -27,13 +41,12 @@ export async function GET() {
         try {
           controller.enqueue(encoder.encode(`: keepalive\n\n`));
         } catch (e) {
-          if (timer) clearInterval(timer);
+          cleanup();
         }
       }, 15000);
     },
     cancel() {
-      if (timer) clearInterval(timer);
-      if (unsubscribe) unsubscribe();
+      cleanup();
     }
   });
 

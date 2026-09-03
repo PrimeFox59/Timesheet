@@ -5,6 +5,20 @@ import { getWibTimestamp } from '@/lib/dateUtils';
 
 export async function POST(request: Request) {
   try {
+    const body = await request.json().catch(() => ({}));
+    const adminId = body.adminId || body.admin_id || body.userId || body.user_id;
+
+    if (!adminId) {
+      return NextResponse.json({ error: 'Unauthorized: Admin ID required for factory reset' }, { status: 401 });
+    }
+
+    const adminUser = db.prepare('SELECT id, role FROM users WHERE LOWER(id) = LOWER(?)').get(adminId) as any;
+    const isSuperUser = adminUser && (adminUser.role?.toLowerCase() === 'superuser' || adminUser.id.toLowerCase() === 'prime');
+
+    if (!isSuperUser) {
+      return NextResponse.json({ error: 'Forbidden: Only Superusers can perform database factory reset' }, { status: 403 });
+    }
+
     const timestamp = getWibTimestamp();
 
     const resetTx = db.transaction(() => {

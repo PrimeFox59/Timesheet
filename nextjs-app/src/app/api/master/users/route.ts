@@ -6,7 +6,7 @@ import { getWibTimestamp } from '@/lib/dateUtils';
 export async function GET() {
   try {
     const users = db.prepare(`
-      SELECT id, username, password, role, grade, preferred_areas, preferred_shift, number_of_areas, phone, email, avatar, face_descriptor, face_photo, face_registered_at
+      SELECT id, username, role, grade, preferred_areas, preferred_shift, number_of_areas, phone, email, avatar, face_descriptor, face_photo, face_registered_at
       FROM users ORDER BY id ASC
     `).all();
     return NextResponse.json({ success: true, data: users });

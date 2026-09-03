@@ -222,7 +222,10 @@ export function initDb() {
     CREATE INDEX IF NOT EXISTS idx_approvals_user_month ON approvals(user_id, month);
     CREATE INDEX IF NOT EXISTS idx_projects_code ON projects(code);
     CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_assignee_status ON tasks(assignee_id, status);
     CREATE INDEX IF NOT EXISTS idx_chat_messages_recipient ON chat_messages(recipient_id);
+    CREATE INDEX IF NOT EXISTS idx_chat_messages_sender ON chat_messages(sender_id);
+    CREATE INDEX IF NOT EXISTS idx_chat_messages_recip_id ON chat_messages(recipient_id, id DESC);
   `);
 
     // Seed default system settings
