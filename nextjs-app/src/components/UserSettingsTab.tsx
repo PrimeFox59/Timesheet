@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Sliders, Save, CheckCircle, AlertCircle, User as UserIcon } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
+import { useToast } from '@/components/Toast';
 
 interface UserSettingsTabProps {
   currentUser: any;
@@ -11,6 +12,7 @@ interface UserSettingsTabProps {
 }
 
 export default function UserSettingsTab({ currentUser, areasList, onUpdateUser }: UserSettingsTabProps) {
+  const toast = useToast();
   // Preferences form state
   const [username, setUsername] = useState(currentUser?.username || '');
   const [preferredShift, setPreferredShift] = useState(currentUser?.preferred_shift || 'Day Shift');
@@ -38,12 +40,10 @@ export default function UserSettingsTab({ currentUser, areasList, onUpdateUser }
   };
 
   const [savingPrefs, setSavingPrefs] = useState(false);
-  const [prefMsg, setPrefMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const handleSavePreferences = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingPrefs(true);
-    setPrefMsg(null);
 
     const finalPrefAreas = columnAreas.slice(0, numAreas).join(',');
 
@@ -64,7 +64,7 @@ export default function UserSettingsTab({ currentUser, areasList, onUpdateUser }
       const data = await res.json();
 
       if (data.success) {
-        setPrefMsg({ type: 'success', text: 'Work preferences updated successfully!' });
+        toast.success('Work preferences updated successfully!');
         if (onUpdateUser) {
           onUpdateUser({
             username: username.trim(),
@@ -74,10 +74,10 @@ export default function UserSettingsTab({ currentUser, areasList, onUpdateUser }
           });
         }
       } else {
-        setPrefMsg({ type: 'error', text: data.error || 'Failed to save preferences' });
+        toast.error(data.error || 'Failed to save preferences');
       }
     } catch (err: any) {
-      setPrefMsg({ type: 'error', text: 'Network error saving preferences' });
+      toast.error('Network error saving preferences');
     } finally {
       setSavingPrefs(false);
     }
@@ -107,15 +107,6 @@ export default function UserSettingsTab({ currentUser, areasList, onUpdateUser }
               Work Preferences & UI Layout
             </h3>
           </div>
-
-          {prefMsg && (
-            <div className={`p-3.5 rounded-xl border text-xs font-semibold flex items-center gap-2 ${
-              prefMsg.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'
-            }`}>
-              {prefMsg.type === 'success' ? <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
-              <span>{prefMsg.text}</span>
-            </div>
-          )}
 
           <form onSubmit={handleSavePreferences} className="space-y-4 text-xs">
             

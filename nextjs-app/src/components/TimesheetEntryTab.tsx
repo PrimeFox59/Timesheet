@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Calendar, Sparkles, CheckCircle2, AlertCircle, RefreshCw, FileSpreadsheet, Download, Lock } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 import { getWibMonthStr, getWibDateStr, TIMEZONE_WIB } from '@/lib/dateUtils';
+import { useToast } from '@/components/Toast';
 
 interface TimesheetEntryTabProps {
   user: any;
@@ -22,6 +23,7 @@ interface DayRowState {
 }
 
 export default function TimesheetEntryTab({ user, areasList, systemSettings }: TimesheetEntryTabProps) {
+  const toast = useToast();
   const isSuperUser = user?.id?.toLowerCase() === 'prime' || user?.id?.toLowerCase() === 'com116' || user?.role?.toLowerCase() === 'superuser';
 
   const today = new Date();
@@ -89,7 +91,6 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
   const [rows, setRows] = useState<DayRowState[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Fetch saved timesheet records from database and populate table grid
   useEffect(() => {
@@ -275,7 +276,7 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
   const handleSubmitTimesheet = async (e: React.FormEvent) => {
     e.preventDefault();
     if (rows.length === 0) {
-      setMessage({ type: 'error', text: 'Please select a valid date range with entries.' });
+      toast.warning('Please select a valid date range with entries.');
       return;
     }
 
@@ -283,15 +284,11 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
     const validRowsToSubmit = isSuperUser ? rows : rows.filter(r => r.dateStr.startsWith(currentYearMonth));
 
     if (validRowsToSubmit.length === 0) {
-      setMessage({
-        type: 'error',
-        text: `Viewing past records (Read-Only). You can only edit and submit entries for the current active month (${currentMonthName} ${currentYear}).`
-      });
+      toast.warning(`Viewing past records (Read-Only). You can only edit and submit entries for the current active month (${currentMonthName} ${currentYear}).`);
       return;
     }
 
     setSubmitting(true);
-    setMessage(null);
 
     const entries = validRowsToSubmit.map(r => ({
       date: r.dateStr,
@@ -320,15 +317,12 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
 
       const data = await res.json();
       if (data.success) {
-        setMessage({
-          type: 'success',
-          text: `Timesheet successfully saved! (${entries.length} active day entries submitted)`
-        });
+        toast.success(`Timesheet successfully saved! (${entries.length} active day entries submitted)`);
       } else {
-        setMessage({ type: 'error', text: data.error || 'Failed to submit timesheet' });
+        toast.error(data.error || 'Failed to submit timesheet');
       }
     } catch (err: any) {
-      setMessage({ type: 'error', text: 'Network error submitting timesheet' });
+      toast.error('Network error submitting timesheet');
     } finally {
       setSubmitting(false);
     }
@@ -339,15 +333,6 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
 
   return (
     <div className="space-y-5 animate-smooth-fade">
-      
-      {message && (
-        <div className={`p-4 rounded-xl flex items-center gap-3 text-xs font-semibold ${
-          message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
-        }`}>
-          {message.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertCircle className="w-4 h-4 text-rose-600" />}
-          <span>{message.text}</span>
-        </div>
-      )}
 
       {/* Date Range Selection Bar */}
       <div className="glass-card rounded-2xl p-5 space-y-3">

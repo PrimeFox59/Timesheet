@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Database, Plus, Trash2, KeyRound, CheckCircle2, AlertCircle } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
+import { useToast } from '@/components/Toast';
 
 interface MasterEditTabProps {
   currentUser: any;
@@ -13,19 +14,17 @@ interface MasterEditTabProps {
 }
 
 export default function MasterEditTab({ currentUser, areasList, usersList, onRefreshAreas, onRefreshUsers }: MasterEditTabProps) {
+  const toast = useToast();
   const [newAreaName, setNewAreaName] = useState('');
   const [areaToDelete, setAreaToDelete] = useState('');
-  const [areaMsg, setAreaMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const [selectedUserId, setSelectedUserId] = useState(usersList[0]?.id || '');
   const [newPassword, setNewPassword] = useState('');
-  const [userMsg, setUserMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const handleAddArea = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAreaName.trim()) return;
 
-    setAreaMsg(null);
     try {
       const res = await fetch(apiUrl('/api/master/areas'), {
         method: 'POST',
@@ -39,14 +38,14 @@ export default function MasterEditTab({ currentUser, areasList, usersList, onRef
 
       const data = await res.json();
       if (data.success) {
-        setAreaMsg({ type: 'success', text: `Area '${newAreaName.trim().toUpperCase()}' added successfully!` });
+        toast.success(`Area '${newAreaName.trim().toUpperCase()}' added successfully!`);
         setNewAreaName('');
         onRefreshAreas();
       } else {
-        setAreaMsg({ type: 'error', text: data.error || 'Failed to add area' });
+        toast.error(data.error || 'Failed to add area');
       }
     } catch (err: any) {
-      setAreaMsg({ type: 'error', text: 'Error adding area' });
+      toast.error('Error adding area');
     }
   };
 
@@ -56,7 +55,6 @@ export default function MasterEditTab({ currentUser, areasList, usersList, onRef
 
     if (!confirm(`Are you sure you want to delete area '${areaToDelete}'?`)) return;
 
-    setAreaMsg(null);
     try {
       const res = await fetch(apiUrl('/api/master/areas'), {
         method: 'DELETE',
@@ -70,14 +68,14 @@ export default function MasterEditTab({ currentUser, areasList, usersList, onRef
 
       const data = await res.json();
       if (data.success) {
-        setAreaMsg({ type: 'success', text: `Area '${areaToDelete}' deleted successfully!` });
+        toast.success(`Area '${areaToDelete}' deleted successfully!`);
         setAreaToDelete('');
         onRefreshAreas();
       } else {
-        setAreaMsg({ type: 'error', text: data.error || 'Failed to delete area' });
+        toast.error(data.error || 'Failed to delete area');
       }
     } catch (err: any) {
-      setAreaMsg({ type: 'error', text: 'Error deleting area' });
+      toast.error('Error deleting area');
     }
   };
 
@@ -85,7 +83,6 @@ export default function MasterEditTab({ currentUser, areasList, usersList, onRef
     e.preventDefault();
     if (!selectedUserId || !newPassword) return;
 
-    setUserMsg(null);
     try {
       const res = await fetch(apiUrl('/api/master/users'), {
         method: 'POST',
@@ -101,13 +98,13 @@ export default function MasterEditTab({ currentUser, areasList, usersList, onRef
 
       const data = await res.json();
       if (data.success) {
-        setUserMsg({ type: 'success', text: data.message });
+        toast.success(data.message);
         setNewPassword('');
       } else {
-        setUserMsg({ type: 'error', text: data.error || 'Failed to reset password' });
+        toast.error(data.error || 'Failed to reset password');
       }
     } catch (err: any) {
-      setUserMsg({ type: 'error', text: 'Error resetting password' });
+      toast.error('Error resetting password');
     }
   };
 
@@ -133,15 +130,6 @@ export default function MasterEditTab({ currentUser, areasList, usersList, onRef
             <Plus className="w-4 h-4 text-[#FF6B00]" />
             Manage Work Areas
           </h3>
-
-          {areaMsg && (
-            <div className={`p-3 rounded-xl flex items-center gap-2 text-xs font-semibold ${
-              areaMsg.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
-            }`}>
-              {areaMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertCircle className="w-4 h-4 text-rose-600" />}
-              <span>{areaMsg.text}</span>
-            </div>
-          )}
 
           {/* Form 1: Add New Area */}
           <form onSubmit={handleAddArea} className="space-y-3 p-4 rounded-xl bg-white/60 border border-white/80">
@@ -209,16 +197,6 @@ export default function MasterEditTab({ currentUser, areasList, usersList, onRef
             <KeyRound className="w-4 h-4 text-[#FF6B00]" />
             Reset User Password
           </h3>
-
-          {userMsg && (
-            <div className={`p-3 rounded-xl flex items-center gap-2 text-xs font-semibold ${
-              userMsg.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
-            }`}>
-              {userMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertCircle className="w-4 h-4 text-rose-600" />}
-              <span>{userMsg.text}</span>
-            </div>
-          )}
-
           <form onSubmit={handleResetPassword} className="space-y-4 p-4 rounded-xl bg-white/60 border border-white/80">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">Select Target User</label>

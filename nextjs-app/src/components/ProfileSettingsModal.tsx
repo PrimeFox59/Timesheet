@@ -81,15 +81,11 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
 
   // UI Status State
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Handle Delete Face ID
   const handleDeleteFaceId = async () => {
     if (!confirm('Are you sure you want to delete your registered Face ID biometric data?')) return;
     setLoading(true);
-    setError(null);
-    setSuccessMsg(null);
 
     try {
       const res = await fetch(apiUrl('/api/user/face-delete'), {
@@ -118,7 +114,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
     if (!file) return;
 
     if (file.size > 2 * 1024 * 1024) {
-      setError('Image size exceeds 2MB limit. Please choose a smaller photo.');
+      toast.warning('Image size exceeds 2MB limit. Please choose a smaller photo.', 'File Too Large');
       return;
     }
 
@@ -133,8 +129,6 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
   // Handle Save Profile
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setSuccessMsg(null);
     setLoading(true);
 
     try {
@@ -247,7 +241,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
         <div className="flex gap-1.5 p-1 bg-slate-100/80 rounded-2xl">
           <button
             type="button"
-            onClick={() => { setActiveTab('profile'); setError(null); setSuccessMsg(null); }}
+            onClick={() => setActiveTab('profile')}
             className={`flex-1 py-2 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'profile'
                 ? 'bg-white text-slate-800 shadow-xs'
@@ -262,7 +256,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
           </button>
           <button
             type="button"
-            onClick={() => { setActiveTab('security'); setError(null); setSuccessMsg(null); }}
+            onClick={() => setActiveTab('security')}
             className={`flex-1 py-2 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'security'
                 ? 'bg-white text-slate-800 shadow-xs'
@@ -274,7 +268,7 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
           </button>
           <button
             type="button"
-            onClick={() => { setActiveTab('face_id'); setError(null); setSuccessMsg(null); }}
+            onClick={() => setActiveTab('face_id')}
             className={`flex-1 py-2 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'face_id'
                 ? 'bg-white text-slate-800 shadow-xs'
@@ -290,42 +284,6 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
             )}
           </button>
         </div>
-
-        {/* Incomplete Profile Callout Warning Banner */}
-        {hasIncompleteProfile && (
-          <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-400/40 text-amber-950 text-xs flex items-start gap-3 animate-in fade-in">
-            <div className="p-1.5 rounded-xl bg-amber-500 text-white shrink-0 mt-0.5 shadow-xs">
-              <AlertTriangle className="w-4 h-4" />
-            </div>
-            <div className="space-y-1 flex-1">
-              <div className="flex items-center justify-between">
-                <h4 className="font-bold text-amber-950 flex items-center gap-1.5">
-                  <span>Action Required: Incomplete Profile</span>
-                </h4>
-                <span className="px-1.5 py-0.2 rounded-md bg-amber-200 text-amber-900 text-[10px] font-black uppercase">
-                  {missingItems.length} Missing
-                </span>
-              </div>
-              <p className="text-amber-800 text-[11px] leading-relaxed">
-                Please complete your <strong>{missingItems.join(', ')}</strong> to ensure seamless multi-factor security and enable AI Face ID biometric login.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Alert Messages */}
-        {error && (
-          <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-        {successMsg && (
-          <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
-            <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>{successMsg}</span>
-          </div>
-        )}
 
         {/* TAB 1: PROFILE INFO & PICTURE */}
         {activeTab === 'profile' && (

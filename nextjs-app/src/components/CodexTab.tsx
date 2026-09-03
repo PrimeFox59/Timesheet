@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 import { getWibMonthStr } from '@/lib/dateUtils';
+import { useToast } from '@/components/Toast';
 
 interface CodexTabProps {
   currentUser: any;
@@ -17,6 +18,7 @@ interface CodexTabProps {
 type SortField = 'user_id' | 'username' | 'role' | 'total_entries' | 'total_hours' | 'total_overtime' | 'approval_status';
 
 export default function CodexTab({ currentUser, usersList }: CodexTabProps) {
+  const toast = useToast();
   const isSuperuser = currentUser?.id?.toLowerCase() === 'prime' || currentUser?.id?.toLowerCase() === 'com116' || currentUser?.role?.toLowerCase() === 'superuser';
   const currentMonthStr = getWibMonthStr(); // YYYY-MM in GMT+7 WIB
   const [selectedMonth, setSelectedMonth] = useState(currentMonthStr);
@@ -45,7 +47,6 @@ export default function CodexTab({ currentUser, usersList }: CodexTabProps) {
   // Bulk Approval modal & processing state
   const [showBulkApproveModal, setShowBulkApproveModal] = useState(false);
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
-  const [bulkMessage, setBulkMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Modal / Drawer state for inspecting user timesheet
   const [inspectUser, setInspectUser] = useState<any | null>(null);
@@ -57,7 +58,6 @@ export default function CodexTab({ currentUser, usersList }: CodexTabProps) {
   const [signatureData, setSignatureData] = useState<string>('');
   const [signatureMode, setSignatureMode] = useState<'draw' | 'upload'>('draw');
   const [submittingApproval, setSubmittingApproval] = useState(false);
-  const [approvalMessage, setApprovalMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Canvas drawing ref
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -193,7 +193,6 @@ export default function CodexTab({ currentUser, usersList }: CodexTabProps) {
   const handleOpenApproveModal = async (userItem: any) => {
     setApproveTarget(userItem);
     setSignatureData(defaultSignature || '');
-    setApprovalMessage(null);
     setSignatureMode('draw');
 
     try {
@@ -310,12 +309,11 @@ export default function CodexTab({ currentUser, usersList }: CodexTabProps) {
     }
 
     if (status === 'Approved' && !sigToUse) {
-      setApprovalMessage({ type: 'error', text: 'Please draw or upload a digital signature before approving.' });
+      toast.error('Please draw or upload a digital signature before approving.');
       return;
     }
 
     setSubmittingApproval(true);
-    setApprovalMessage(null);
 
     try {
       const res = await fetch(apiUrl('/api/codex/approve'), {
@@ -333,16 +331,14 @@ export default function CodexTab({ currentUser, usersList }: CodexTabProps) {
 
       const data = await res.json();
       if (data.success) {
-        setApprovalMessage({ type: 'success', text: data.message });
-        setTimeout(() => {
-          setApproveTarget(null);
-          fetchMonitoringData();
-        }, 1200);
+        toast.success(data.message);
+        setApproveTarget(null);
+        fetchMonitoringData();
       } else {
-        setApprovalMessage({ type: 'error', text: data.error || 'Failed to submit approval.' });
+        toast.error(data.error || 'Failed to submit approval.');
       }
     } catch (e) {
-      setApprovalMessage({ type: 'error', text: 'Network error submitting approval.' });
+      toast.error('Network error submitting approval.');
     } finally {
       setSubmittingApproval(false);
     }
@@ -356,12 +352,11 @@ export default function CodexTab({ currentUser, usersList }: CodexTabProps) {
     }
 
     if (!sigToUse) {
-      setBulkMessage({ type: 'error', text: 'Please draw or upload a digital signature first.' });
+      toast.error('Please draw or upload a digital signature first.');
       return;
     }
 
     setBulkSubmitting(true);
-    setBulkMessage(null);
 
     const targetUserIds = filteredAndSortedData.map(u => u.user_id);
 
@@ -382,18 +377,14 @@ export default function CodexTab({ currentUser, usersList }: CodexTabProps) {
       const data = await res.json();
       if (data.success) {
         handleSaveDefaultSignature(sigToUse);
-        setBulkMessage({ type: 'success', text: data.message });
-
-        setTimeout(() => {
-          setShowBulkApproveModal(false);
-          setBulkMessage(null);
-          fetchMonitoringData();
-        }, 1200);
+        toast.success(data.message);
+        setShowBulkApproveModal(false);
+        fetchMonitoringData();
       } else {
-        setBulkMessage({ type: 'error', text: data.error || 'Bulk approval failed.' });
+        toast.error(data.error || 'Bulk approval failed.');
       }
     } catch (e) {
-      setBulkMessage({ type: 'error', text: 'Network error executing bulk approval.' });
+      toast.error('Network error executing bulk approval.');
     } finally {
       setBulkSubmitting(false);
     }
@@ -456,7 +447,6 @@ export default function CodexTab({ currentUser, usersList }: CodexTabProps) {
           <button
             onClick={() => {
               setShowBulkApproveModal(true);
-              setBulkMessage(null);
               if (!defaultSignature) {
                 setTimeout(() => clearCanvas(canvasRef.current), 100);
               }
@@ -818,14 +808,6 @@ export default function CodexTab({ currentUser, usersList }: CodexTabProps) {
               </button>
             </div>
 
-            {bulkMessage && (
-              <div className={`p-3 rounded-xl flex items-center gap-2 text-xs font-semibold ${
-                bulkMessage.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
-              }`}>
-                {bulkMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertCircle className="w-4 h-4 text-rose-600" />}
-                <span>{bulkMessage.text}</span>
-              </div>
-            )}
 
             {defaultSignature ? (
               <div className="space-y-3">
@@ -1027,14 +1009,6 @@ export default function CodexTab({ currentUser, usersList }: CodexTabProps) {
               </button>
             </div>
 
-            {approvalMessage && (
-              <div className={`p-3 rounded-xl flex items-center gap-2 text-xs font-semibold ${
-                approvalMessage.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'
-              }`}>
-                {approvalMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertCircle className="w-4 h-4 text-rose-600" />}
-                <span>{approvalMessage.text}</span>
-              </div>
-            )}
 
             {/* Signature Input Mode Tabs */}
             <div className="flex rounded-xl bg-slate-100 p-1 text-xs font-bold">

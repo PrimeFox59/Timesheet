@@ -9,6 +9,7 @@ import {
   RefreshCw, X, Check, Eye, Lock, UserPlus
 } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
+import { useToast } from '@/components/Toast';
 
 interface Task {
   id: number;
@@ -86,11 +87,11 @@ export default function ProjectManagerTab({
   initialSubTab = 'gantt_timeline'
 }: ProjectManagerTabProps) {
   const currentSubTab = activeSubTab || initialSubTab;
+  const toast = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const roleLower = (currentUser?.role || '').toLowerCase();
   const uidLower = (currentUser?.id || '').toLowerCase();
@@ -232,7 +233,7 @@ export default function ProjectManagerTab({
       }
     } catch (err: any) {
       console.error("Error fetching projects & tasks:", err);
-      setFeedback({ type: 'error', text: 'Failed to load projects and tasks.' });
+      toast.error('Failed to load projects and tasks.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -384,15 +385,15 @@ export default function ProjectManagerTab({
 
       const data = await res.json();
       if (data.success) {
-        setFeedback({ type: 'success', text: data.message || 'Project and member invitations saved successfully!' });
+        toast.success(data.message || 'Project and member invitations saved successfully!');
         setIsProjectModalOpen(false);
         setEditingProject(null);
         fetchData();
       } else {
-        setFeedback({ type: 'error', text: data.error || 'Failed to save project' });
+        toast.error(data.error || 'Failed to save project');
       }
     } catch (err: any) {
-      setFeedback({ type: 'error', text: err.message || 'Network error' });
+      toast.error(err.message || 'Network error');
     }
   };
 
@@ -423,14 +424,14 @@ export default function ProjectManagerTab({
 
       const data = await res.json();
       if (data.success) {
-        setFeedback({ type: 'success', text: 'Project team members updated successfully!' });
+        toast.success('Project team members updated successfully!');
         setManagingMembersProject(null);
         fetchData();
       } else {
-        setFeedback({ type: 'error', text: data.error || 'Failed to update team members' });
+        toast.error(data.error || 'Failed to update team members');
       }
     } catch (err: any) {
-      setFeedback({ type: 'error', text: err.message || 'Network error' });
+      toast.error(err.message || 'Network error');
     }
   };
 
@@ -455,15 +456,15 @@ export default function ProjectManagerTab({
 
       const data = await res.json();
       if (data.success) {
-        setFeedback({ type: 'success', text: data.message || 'Task and delegation saved successfully!' });
+        toast.success(data.message || 'Task and delegation saved successfully!');
         setIsTaskModalOpen(false);
         setEditingTask(null);
         fetchData();
       } else {
-        setFeedback({ type: 'error', text: data.error || 'Failed to save task' });
+        toast.error(data.error || 'Failed to save task');
       }
     } catch (err: any) {
-      setFeedback({ type: 'error', text: err.message || 'Network error' });
+      toast.error(err.message || 'Network error');
     }
   };
 
@@ -479,14 +480,14 @@ export default function ProjectManagerTab({
       const data = await res.json();
 
       if (data.success) {
-        setFeedback({ type: 'success', text: `${deleteConfirm.type === 'project' ? 'Project' : 'Task'} deleted successfully!` });
+        toast.success(`${deleteConfirm.type === 'project' ? 'Project' : 'Task'} deleted successfully!`);
         setDeleteConfirm(null);
         fetchData();
       } else {
-        setFeedback({ type: 'error', text: data.error || 'Failed to delete' });
+        toast.error(data.error || 'Failed to delete');
       }
     } catch (err: any) {
-      setFeedback({ type: 'error', text: 'Error deleting item' });
+      toast.error('Error deleting item');
     }
   };
 
@@ -742,21 +743,6 @@ export default function ProjectManagerTab({
         </div>
 
       </div>
-
-      {/* Feedback Alert */}
-      {feedback && (
-        <div className={`p-4 rounded-2xl border text-xs font-semibold flex items-center justify-between gap-2 animate-in fade-in ${
-          feedback.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'
-        }`}>
-          <div className="flex items-center gap-2">
-            {feedback.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" /> : <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />}
-            <span>{feedback.text}</span>
-          </div>
-          <button onClick={() => setFeedback(null)} className="p-1 rounded-lg hover:bg-black/5 text-slate-400 hover:text-slate-700">
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
 
       {/* VIEW 1: GANTT CHART TIMELINE */}
       {(currentSubTab === 'gantt_timeline' || !currentSubTab) && (

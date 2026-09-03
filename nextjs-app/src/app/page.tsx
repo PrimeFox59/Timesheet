@@ -79,7 +79,6 @@ export default function Home() {
   // Login form state
   const [loginId, setLoginId] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
 
   const [systemSettings, setSystemSettings] = useState<Record<string, boolean | string>>({
@@ -173,11 +172,10 @@ export default function Home() {
   const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!loginId.trim() || !loginPassword.trim()) {
-      setLoginError('User ID and Password are required');
+      toast.warning('User ID and Password are required', 'Login Required');
       return;
     }
     setLoggingIn(true);
-    setLoginError('');
 
     try {
       const res = await fetch(apiUrl('/api/auth/login'), {
@@ -197,10 +195,10 @@ export default function Home() {
         } catch (e) {}
         toast.success(`Welcome back, ${data.user.username}!`);
       } else {
-        setLoginError(data.message || data.error || 'Invalid credentials');
+        toast.error(data.message || data.error || 'Invalid credentials', 'Login Failed');
       }
     } catch (err: any) {
-      setLoginError('Server connection failed');
+      toast.error('Server connection failed', 'Connection Error');
     } finally {
       setLoggingIn(false);
     }
@@ -404,12 +402,6 @@ export default function Home() {
               </div>
 
               <form onSubmit={handleLogin} className="space-y-4">
-                {loginError && (
-                  <div className="flex items-center gap-2 p-3 text-xs bg-red-50 text-red-600 rounded-xl border border-red-200 animate-in fade-in">
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    <span>{loginError}</span>
-                  </div>
-                )}
 
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">

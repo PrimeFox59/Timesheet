@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Users, Search, RefreshCw, Eye, EyeOff, Shield, Award, UserPlus, Edit2, Trash2, X, CheckCircle, AlertCircle } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
+import { useToast } from '@/components/Toast';
 
 interface UserManagementTabProps {
   usersList: any[];
@@ -11,10 +12,10 @@ interface UserManagementTabProps {
 }
 
 export default function UserManagementTab({ usersList, currentUser, onRefreshUsers }: UserManagementTabProps) {
+  const toast = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [showPasswords, setShowPasswords] = useState<{ [key: string]: boolean }>({});
   const [loading, setLoading] = useState(false);
-  const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -73,7 +74,6 @@ export default function UserManagementTab({ usersList, currentUser, onRefreshUse
       preferred_shift: 'Day Shift',
       number_of_areas: 2
     });
-    setStatusMsg(null);
     setIsAddModalOpen(true);
   };
 
@@ -89,7 +89,6 @@ export default function UserManagementTab({ usersList, currentUser, onRefreshUse
       preferred_shift: user.preferred_shift || 'Day Shift',
       number_of_areas: user.number_of_areas || 2
     });
-    setStatusMsg(null);
     setIsEditModalOpen(true);
   };
 
@@ -97,7 +96,6 @@ export default function UserManagementTab({ usersList, currentUser, onRefreshUse
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setStatusMsg(null);
 
     try {
       const res = await fetch(apiUrl('/api/master/users'), {
@@ -113,14 +111,14 @@ export default function UserManagementTab({ usersList, currentUser, onRefreshUse
 
       const data = await res.json();
       if (data.success) {
-        setStatusMsg({ type: 'success', text: data.message });
+        toast.success(data.message);
         setIsAddModalOpen(false);
         await onRefreshUsers();
       } else {
-        setStatusMsg({ type: 'error', text: data.error || 'Failed to create user' });
+        toast.error(data.error || 'Failed to create user');
       }
     } catch (err: any) {
-      setStatusMsg({ type: 'error', text: 'Network error creating user' });
+      toast.error('Network error creating user');
     } finally {
       setLoading(false);
     }
@@ -130,7 +128,6 @@ export default function UserManagementTab({ usersList, currentUser, onRefreshUse
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setStatusMsg(null);
 
     try {
       const res = await fetch(apiUrl('/api/master/users'), {
@@ -145,14 +142,14 @@ export default function UserManagementTab({ usersList, currentUser, onRefreshUse
 
       const data = await res.json();
       if (data.success) {
-        setStatusMsg({ type: 'success', text: data.message });
+        toast.success(data.message);
         setIsEditModalOpen(false);
         await onRefreshUsers();
       } else {
-        setStatusMsg({ type: 'error', text: data.error || 'Failed to update user' });
+        toast.error(data.error || 'Failed to update user');
       }
     } catch (err: any) {
-      setStatusMsg({ type: 'error', text: 'Network error updating user' });
+      toast.error('Network error updating user');
     } finally {
       setLoading(false);
     }
@@ -162,24 +159,22 @@ export default function UserManagementTab({ usersList, currentUser, onRefreshUse
   const handleDeleteConfirm = async () => {
     if (!deleteTargetUser) return;
     setLoading(true);
-    setStatusMsg(null);
 
     try {
       const res = await fetch(apiUrl(`/api/master/users?id=${encodeURIComponent(deleteTargetUser.id)}`), {
         method: 'DELETE'
       });
 
-
       const data = await res.json();
       if (data.success) {
-        setStatusMsg({ type: 'success', text: data.message });
+        toast.success(data.message);
         setDeleteTargetUser(null);
         await onRefreshUsers();
       } else {
-        setStatusMsg({ type: 'error', text: data.error || 'Failed to delete user' });
+        toast.error(data.error || 'Failed to delete user');
       }
     } catch (err: any) {
-      setStatusMsg({ type: 'error', text: 'Network error deleting user' });
+      toast.error('Network error deleting user');
     } finally {
       setLoading(false);
     }
@@ -201,21 +196,6 @@ export default function UserManagementTab({ usersList, currentUser, onRefreshUse
 
   return (
     <div className="space-y-6 animate-smooth-fade">
-      
-      {/* Global Status Message Toast */}
-      {statusMsg && (
-        <div className={`p-4 rounded-2xl border text-xs font-semibold flex items-center justify-between gap-2 shadow-lg ${
-          statusMsg.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'
-        }`}>
-          <div className="flex items-center gap-2">
-            {statusMsg.type === 'success' ? <CheckCircle className="w-4 h-4 text-emerald-600" /> : <AlertCircle className="w-4 h-4 text-rose-600" />}
-            <span>{statusMsg.text}</span>
-          </div>
-          <button onClick={() => setStatusMsg(null)} className="text-slate-400 hover:text-slate-700">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
 
       {/* Header & KPI Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

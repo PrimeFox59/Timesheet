@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Database, Upload, Download, CheckCircle, AlertCircle, FileSpreadsheet, ExternalLink, RefreshCw, Server, RotateCcw, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
+import { useToast } from '@/components/Toast';
 
 interface DatabaseManagementTabProps {
   currentUser: any;
@@ -10,6 +11,7 @@ interface DatabaseManagementTabProps {
 }
 
 export default function DatabaseManagementTab({ currentUser, onRefreshAll }: DatabaseManagementTabProps) {
+  const toast = useToast();
   const isSuperuser = currentUser?.id?.toLowerCase() === 'prime' || currentUser?.id?.toLowerCase() === 'com116' || currentUser?.role?.toLowerCase() === 'superuser';
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [migrating, setMigrating] = useState(false);
@@ -52,6 +54,7 @@ export default function DatabaseManagementTab({ currentUser, onRefreshAll }: Dat
       const data = await res.json();
 
       if (data.success) {
+        toast.success(data.message || 'Database migration completed successfully!');
         setMigrationResult({
           success: true,
           message: data.message,
@@ -60,12 +63,14 @@ export default function DatabaseManagementTab({ currentUser, onRefreshAll }: Dat
         setSelectedFile(null);
         if (onRefreshAll) onRefreshAll();
       } else {
+        toast.error(data.error || 'Migration failed');
         setMigrationResult({
           success: false,
           message: data.error || 'Migration failed'
         });
       }
     } catch (err: any) {
+      toast.error('Network error during migration upload');
       setMigrationResult({
         success: false,
         message: 'Network error during migration upload'
@@ -90,8 +95,8 @@ export default function DatabaseManagementTab({ currentUser, onRefreshAll }: Dat
 
       const data = await res.json();
 
-
       if (data.success) {
+        toast.success(data.message || 'Database successfully reset to factory defaults.');
         setResetResult({
           success: true,
           message: data.message
@@ -99,12 +104,14 @@ export default function DatabaseManagementTab({ currentUser, onRefreshAll }: Dat
         setIsResetModalOpen(false);
         if (onRefreshAll) onRefreshAll();
       } else {
+        toast.error(data.error || 'Failed to reset database');
         setResetResult({
           success: false,
           message: data.error || 'Failed to reset database'
         });
       }
     } catch (err: any) {
+      toast.error('Network error executing database reset');
       setResetResult({
         success: false,
         message: 'Network error executing database reset'
