@@ -1,26 +1,26 @@
 // QA Automated Test Suite for Timesheet METSO
 // Tests functional integrity, security controls, multi-user queries, and system stability.
 
-const http = require('http');
+const https = require('https');
 
-const BASE_HOST = 'localhost';
-const BASE_PORT = 8565; // PM2 production port or test port
+const BASE_URL = 'https://timesweet.primeprojectx.net';
 
 function request(path, options = {}, body = null) {
   return new Promise((resolve, reject) => {
+    const url = new URL(path, BASE_URL);
     const reqOptions = {
-      hostname: BASE_HOST,
-      port: BASE_PORT,
-      path,
+      hostname: url.hostname,
+      port: 443,
+      path: url.pathname + url.search,
       method: options.method || 'GET',
       headers: {
         'Content-Type': 'application/json',
         ...(options.headers || {})
       },
-      timeout: 10000
+      timeout: 15000
     };
 
-    const req = http.request(reqOptions, (res) => {
+    const req = https.request(reqOptions, (res) => {
       const chunks = [];
       res.on('data', chunk => chunks.push(chunk));
       res.on('end', () => {
