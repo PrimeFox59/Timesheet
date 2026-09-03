@@ -349,7 +349,7 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
     <div className="space-y-5 animate-smooth-fade">
 
       {/* Date Range Selection Bar */}
-      <div className="glass-card rounded-2xl p-5 space-y-3">
+      <div id="tour-date-range" className="glass-card rounded-2xl p-5 space-y-3">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 w-full">
             <div>
@@ -447,7 +447,7 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
             </div>
 
             {/* Quick Helper Actions */}
-            <div className="flex flex-wrap gap-1.5">
+            <div id="tour-quick-actions" className="flex flex-wrap gap-1.5">
               <button
                 type="button"
                 onClick={fillAllWorkdays10h}
@@ -473,7 +473,7 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
           </div>
 
           {/* Interactive Excel Grid */}
-          <div className="overflow-x-auto max-h-[500px] overflow-y-auto rounded-xl border border-slate-200/80 shadow-inner">
+          <div id="tour-timesheet-table" className="overflow-x-auto max-h-[500px] overflow-y-auto rounded-xl border border-slate-200/80 shadow-inner">
             <table className="w-full text-left text-xs text-slate-700">
               <thead className="bg-slate-900/90 text-slate-100 font-semibold uppercase text-[10px] tracking-wider sticky top-0 z-10">
                 <tr>
@@ -655,6 +655,7 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
               )}
 
               <button
+                id="tour-submit-timesheet"
                 type="submit"
                 disabled={submitting || rows.length === 0 || editableRowsCount === 0}
                 className={`px-6 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-md w-full sm:w-auto justify-center transition ${

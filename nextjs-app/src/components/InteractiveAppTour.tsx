@@ -17,7 +17,8 @@ import {
   Zap,
   Sliders,
   ShieldCheck,
-  FileCheck
+  FileCheck,
+  Edit3
 } from 'lucide-react';
 
 export interface TourStep {
@@ -117,7 +118,19 @@ const TOUR_STEPS: TourStep[] = [
     subTab: 'timesheet_entry'
   },
 
-  // 8. TIMESHEET SUB-MENU 2: Activity Log
+  // 8. TIMESHEET FEATURE: Cara Edit Timesheet yang Sudah di-Submit
+  {
+    targetId: 'tour-timesheet-table',
+    tag: 'TIMESHEET FEATURE: REVISION',
+    title: '5. Cara Edit Timesheet yang Sudah di-Submit',
+    content: 'Ingin merevisi jam, shift, area, atau remark pada data yang sudah pernah di-submit? Cukup pilih kembali rentang tanggal (Start Date & End Date) dari periode yang ingin diubah. Data lama otomatis ditarik dan termuat ke tabel grid. Lakukan perbaikan langsung di baris tabel, lalu klik kembali "Submit Timesheet" untuk menyimpan revisi data ke server!',
+    icon: Edit3,
+    preferredPosition: 'top',
+    category: 'timesheet',
+    subTab: 'timesheet_entry'
+  },
+
+  // 9. TIMESHEET SUB-MENU 2: Activity Log
   {
     targetId: 'tour-subtab-activity',
     tag: 'SUB-MENU 2: ACTIVITY LOG',
@@ -129,7 +142,7 @@ const TOUR_STEPS: TourStep[] = [
     subTab: 'activity_log'
   },
 
-  // 9. TIMESHEET SUB-MENU 3: User Settings
+  // 10. TIMESHEET SUB-MENU 3: User Settings
   {
     targetId: 'tour-subtab-settings',
     tag: 'SUB-MENU 3: USER SETTINGS',
@@ -141,7 +154,7 @@ const TOUR_STEPS: TourStep[] = [
     subTab: 'user_settings'
   },
 
-  // 10. AUDIT LOG MENU: Personal & System Audit Trail
+  // 11. AUDIT LOG MENU: Personal & System Audit Trail
   {
     targetId: 'tour-sidebar-audit',
     tag: 'MODULE 2 OF 3: AUDIT LOG',
@@ -153,7 +166,7 @@ const TOUR_STEPS: TourStep[] = [
     subTab: 'audit_log'
   },
 
-  // 11. LIVE COLLABORATION: Realtime Team & Chat
+  // 12. LIVE COLLABORATION: Realtime Team & Chat
   {
     targetId: 'tour-online-presence',
     tag: 'MODULE 3 OF 3: COLLABORATION',
@@ -165,7 +178,7 @@ const TOUR_STEPS: TourStep[] = [
     subTab: 'timesheet_entry'
   },
 
-  // 12. USER ACCOUNT: Profile Settings & AI Face ID
+  // 13. USER ACCOUNT: Profile Settings & AI Face ID
   {
     targetId: 'tour-profile-modal-content',
     tag: 'ACCOUNT & SECURITY',
