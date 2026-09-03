@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   Search, 
   Save, 
@@ -11,7 +11,11 @@ import {
   Download, 
   RefreshCw,
   AlertCircle,
-  ShieldAlert
+  ShieldAlert,
+  Users,
+  ChevronDown,
+  X,
+  Check
 } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 import { useToast } from '@/components/Toast';
@@ -56,10 +60,25 @@ export default function DataCorrectionsTab({
 
   // Filters state
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedUserFilter, setSelectedUserFilter] = useState('ALL');
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]); // empty means ALL
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [onlyModified, setOnlyModified] = useState(false);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Delete modal state
   const [deleteTarget, setDeleteTarget] = useState<PresensiRow | null>(null);
@@ -70,8 +89,8 @@ export default function DataCorrectionsTab({
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (selectedUserFilter && selectedUserFilter !== 'ALL') {
-        params.append('userId', selectedUserFilter);
+      if (selectedUserIds.length > 0) {
+        params.append('userIds', selectedUserIds.join(','));
       }
       if (startDate) params.append('startDate', startDate);
       if (endDate) params.append('endDate', endDate);
@@ -93,7 +112,7 @@ export default function DataCorrectionsTab({
     } finally {
       setLoading(false);
     }
-  }, [selectedUserFilter, startDate, endDate]);
+  }, [selectedUserIds, startDate, endDate]);
 
   useEffect(() => {
     fetchRecords();
@@ -297,6 +316,10 @@ export default function DataCorrectionsTab({
     return records.filter(r => {
       if (onlyModified && !modifiedRows[r.id]) return false;
 
+      if (selectedUserIds.length > 0 && !selectedUserIds.includes(r.user_id)) {
+        return false;
+      }
+
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const match = 
@@ -313,7 +336,7 @@ export default function DataCorrectionsTab({
 
       return true;
     });
-  }, [records, searchQuery, onlyModified, modifiedRows]);
+  }, [records, searchQuery, onlyModified, modifiedRows, selectedUserIds]);
 
   const modifiedCount = Object.keys(modifiedRows).length;
 
@@ -405,20 +428,151 @@ export default function DataCorrectionsTab({
             />
           </div>
 
-          {/* User Select Filter */}
-          <div className="relative">
-            <select
-              value={selectedUserFilter}
-              onChange={e => setSelectedUserFilter(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl text-xs glass-input font-medium appearance-none cursor-pointer"
+          {/* Multi-User Select Popover */}
+          <div className="relative" ref={userMenuRef}>
+            <button
+              type="button"
+              onClick={() => setIsUserMenuOpen(prev => !prev)}
+              className={`w-full px-3 py-2 rounded-xl text-xs glass-input font-medium flex items-center justify-between gap-2 cursor-pointer transition ${
+                selectedUserIds.length > 0 ? 'border-[#FF6B00] bg-orange-50/50 text-orange-950 font-semibold shadow-xs' : 'text-slate-700'
+              }`}
             >
-              <option value="ALL">All Users ({usersList?.length || 0} members)</option>
-              {usersList?.map(u => (
-                <option key={u.id} value={u.id}>
-                  {u.username} ({u.id})
-                </option>
-              ))}
-            </select>
+              <div className="flex items-center gap-2 truncate">
+                <Users className={`w-3.5 h-3.5 shrink-0 ${selectedUserIds.length > 0 ? 'text-[#FF6B00]' : 'text-slate-400'}`} />
+                <span className="truncate">
+                  {selectedUserIds.length === 0
+                    ? `All Users (${usersList?.length || 0} members)`
+                    : selectedUserIds.length === 1
+                    ? `${usersList?.find(u => u.id === selectedUserIds[0])?.username || selectedUserIds[0]} (1)`
+                    : `${selectedUserIds.length} Users Selected`}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                {selectedUserIds.length > 0 && (
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedUserIds([]);
+                    }}
+                    className="p-0.5 rounded-full hover:bg-orange-200 text-orange-900 transition cursor-pointer"
+                    title="Clear selected users"
+                  >
+                    <X className="w-3 h-3" />
+                  </span>
+                )}
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} />
+              </div>
+            </button>
+
+            {/* Dropdown Popover */}
+            {isUserMenuOpen && (
+              <div className="absolute left-0 top-full mt-1.5 w-72 sm:w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 p-3 z-50 animate-in fade-in zoom-in-95 duration-150">
+                {/* Search user box */}
+                <div className="relative mb-2">
+                  <Search className="w-3 h-3 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search name or COM ID..."
+                    value={userSearchTerm}
+                    onChange={e => setUserSearchTerm(e.target.value)}
+                    className="w-full pl-7 pr-3 py-1.5 rounded-lg text-xs bg-slate-50 border border-slate-200 focus:bg-white focus:border-[#FF6B00] outline-none"
+                    autoFocus
+                  />
+                  {userSearchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setUserSearchTerm('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Quick actions (Select All / Clear) */}
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 text-[11px] font-semibold text-slate-600">
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedUserIds(usersList?.map(u => u.id) || [])}
+                      className="px-2 py-0.5 rounded hover:bg-slate-100 text-slate-700 cursor-pointer"
+                    >
+                      Select All
+                    </button>
+                    <span>&bull;</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedUserIds([])}
+                      className="px-2 py-0.5 rounded hover:bg-slate-100 text-rose-600 cursor-pointer"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                  <span className="text-[10px] font-mono text-slate-400">
+                    {selectedUserIds.length} / {usersList?.length || 0}
+                  </span>
+                </div>
+
+                {/* Users List with Checkboxes */}
+                <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 my-1 py-1">
+                  {usersList
+                    ?.filter(u => {
+                      if (!userSearchTerm.trim()) return true;
+                      const q = userSearchTerm.toLowerCase();
+                      return u.username.toLowerCase().includes(q) || u.id.toLowerCase().includes(q);
+                    })
+                    .map(u => {
+                      const isSelected = selectedUserIds.includes(u.id);
+
+                      return (
+                        <div
+                          key={u.id}
+                          onClick={() => {
+                            setSelectedUserIds(prev =>
+                              isSelected ? prev.filter(id => id !== u.id) : [...prev, u.id]
+                            );
+                          }}
+                          className={`flex items-center justify-between p-2 rounded-xl text-xs cursor-pointer transition ${
+                            isSelected ? 'bg-orange-50/80 text-orange-950 font-semibold' : 'hover:bg-slate-50 text-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={`w-4 h-4 rounded border flex items-center justify-center transition shrink-0 ${
+                              isSelected ? 'bg-[#FF6B00] border-[#FF6B00] text-white' : 'border-slate-300 bg-white'
+                            }`}>
+                              {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <span className="truncate">{u.username}</span>
+                              <span className="font-mono text-[10px] text-slate-400 uppercase leading-none">
+                                {u.id}
+                              </span>
+                            </div>
+                          </div>
+
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-mono shrink-0">
+                            {u.role ? u.role.split(' ')[0] : 'User'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                </div>
+
+                {/* Done button */}
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-[10px] text-slate-400 italic">
+                    {selectedUserIds.length === 0 ? 'Showing all users' : `Filtering ${selectedUserIds.length} users`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsUserMenuOpen(false)}
+                    className="px-3 py-1 rounded-lg bg-[#FF6B00] text-white text-xs font-bold shadow-xs hover:bg-orange-600 cursor-pointer"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Start Date */}
@@ -495,7 +649,7 @@ export default function DataCorrectionsTab({
               onClick={() => {
                 setStartDate('');
                 setEndDate('');
-                setSelectedUserFilter('ALL');
+                setSelectedUserIds([]);
                 setSearchQuery('');
                 setOnlyModified(false);
               }}

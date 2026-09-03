@@ -33,6 +33,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
+    const userIdsParam = searchParams.get('userIds');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
@@ -49,10 +50,18 @@ export async function GET(request: Request) {
     `;
     const params: any[] = [];
 
-    if (userId) {
+    if (userIdsParam) {
+      const idList = userIdsParam.split(',').map(s => s.trim()).filter(Boolean);
+      if (idList.length > 0) {
+        const placeholders = idList.map(() => '?').join(',');
+        query += ` AND user_id IN (${placeholders})`;
+        params.push(...idList);
+      }
+    } else if (userId && userId !== 'ALL') {
       query += ' AND user_id = ?';
       params.push(userId);
     }
+
     if (startDate) {
       query += ' AND date >= ?';
       params.push(startDate);
@@ -65,8 +74,8 @@ export async function GET(request: Request) {
     query += ' ORDER BY date DESC, id DESC';
 
     // Limit log view for instant response when no specific filter is selected
-    if (!userId && !startDate && !endDate) {
-      query += ' LIMIT 300';
+    if (!userIdsParam && (!userId || userId === 'ALL') && !startDate && !endDate) {
+      query += ' LIMIT 500';
     }
 
     const records = db.prepare(query).all(...params);
