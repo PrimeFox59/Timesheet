@@ -188,8 +188,12 @@ export default function Home() {
       const data = await res.json();
       if (data.success && data.user) {
         setUser(data.user);
+        setActiveCategory('timesheet');
+        setActiveSubTab('timesheet_entry');
         try {
           localStorage.setItem('metso_user_session', JSON.stringify(data.user));
+          localStorage.setItem('metso_active_category', 'timesheet');
+          localStorage.setItem('metso_active_subtab', 'timesheet_entry');
         } catch (e) {}
         toast.success(`Welcome back, ${data.user.username}!`);
       } else {
@@ -204,11 +208,33 @@ export default function Home() {
 
   const handleLogout = () => {
     setUser(null);
+    setActiveCategory('timesheet');
+    setActiveSubTab('timesheet_entry');
     try {
       localStorage.removeItem('metso_user_session');
+      localStorage.setItem('metso_active_category', 'timesheet');
+      localStorage.setItem('metso_active_subtab', 'timesheet_entry');
     } catch (e) {}
     toast.info('Logged out successfully');
   };
+
+  // Guard activeCategory: If user is not authorized for current tab, immediately redirect to timesheet
+  useEffect(() => {
+    if (!user) return;
+    const isSuperUser = user?.id?.toLowerCase() === 'prime' || user?.id?.toLowerCase() === 'com116' || user?.role?.toLowerCase() === 'superuser';
+    const isSiteAdmin = user?.role === 'Site Admin' || user?.role?.toLowerCase()?.includes('admin') || isSuperUser;
+    const isDirector = user?.role?.includes('Director') || user?.role?.toLowerCase()?.includes('director') || isSiteAdmin;
+
+    const privilegedCategories = ['codex', 'user_management', 'database', 'superuser'];
+    if (!isDirector && privilegedCategories.includes(activeCategory)) {
+      setActiveCategory('timesheet');
+      setActiveSubTab('timesheet_entry');
+      try {
+        localStorage.setItem('metso_active_category', 'timesheet');
+        localStorage.setItem('metso_active_subtab', 'timesheet_entry');
+      } catch (e) {}
+    }
+  }, [user, activeCategory]);
 
   const handleUpdateUserSession = (updatedUser: any) => {
     setUser(updatedUser);
@@ -759,8 +785,12 @@ export default function Home() {
           onClose={() => setShowFaceIdModal(false)}
           onSuccess={(loggedInUser: any) => {
             setUser(loggedInUser);
+            setActiveCategory('timesheet');
+            setActiveSubTab('timesheet_entry');
             try {
               localStorage.setItem('metso_user_session', JSON.stringify(loggedInUser));
+              localStorage.setItem('metso_active_category', 'timesheet');
+              localStorage.setItem('metso_active_subtab', 'timesheet_entry');
             } catch (e) {}
             setShowFaceIdModal(false);
             toast.success(`Face ID verified. Welcome, ${loggedInUser.username}!`);
