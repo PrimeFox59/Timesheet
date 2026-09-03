@@ -92,6 +92,17 @@ export default function ProjectManagerTab({
   const [refreshing, setRefreshing] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  const roleLower = (currentUser?.role || '').toLowerCase();
+  const uidLower = (currentUser?.id || '').toLowerCase();
+  const isPrivileged = roleLower === 'superuser' || 
+                       roleLower === 'site admin' || 
+                       roleLower.includes('director') || 
+                       uidLower === 'prime' || 
+                       uidLower === 'com116';
+
+  const canManageProject = (proj: Project) => 
+    isPrivileged || proj.manager_id === currentUser?.id || proj.created_by === currentUser?.id;
+
   // Filters with LocalStorage persistence so switching tabs or refreshing doesn't reset them!
   const [selectedProjectId, setSelectedProjectId] = useState<string>('ALL');
   const [selectedArea, setSelectedArea] = useState<string>('ALL');
@@ -639,13 +650,15 @@ export default function ProjectManagerTab({
               <span>Sync</span>
             </button>
 
-            <button
-              onClick={openNewProjectModal}
-              className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-black transition flex items-center gap-1.5 shadow-md cursor-pointer active:scale-95"
-            >
-              <Plus className="w-4 h-4 text-[#FF6B00]" />
-              <span>New Project</span>
-            </button>
+            {isPrivileged && (
+              <button
+                onClick={openNewProjectModal}
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-black transition flex items-center gap-1.5 shadow-md cursor-pointer active:scale-95"
+              >
+                <Plus className="w-4 h-4 text-[#FF6B00]" />
+                <span>New Project</span>
+              </button>
+            )}
 
             <button
               onClick={() => openNewTaskModal()}
@@ -1003,29 +1016,31 @@ export default function ProjectManagerTab({
                       </h3>
                     </div>
 
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => openManageMembers(proj)}
-                        className="p-1.5 rounded-xl hover:bg-orange-50 text-slate-400 hover:text-[#FF6B00] transition cursor-pointer"
-                        title="Manage & Invite Team Members"
-                      >
-                        <UserPlus className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => openEditProjectModal(proj)}
-                        className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-800 transition cursor-pointer"
-                        title="Edit Project"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirm({ type: 'project', id: proj.id, name: proj.name })}
-                        className="p-1.5 rounded-xl hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition cursor-pointer"
-                        title="Delete Project"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    {canManageProject(proj) && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => openManageMembers(proj)}
+                          className="p-1.5 rounded-xl hover:bg-orange-50 text-slate-400 hover:text-[#FF6B00] transition cursor-pointer"
+                          title="Manage & Invite Team Members"
+                        >
+                          <UserPlus className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => openEditProjectModal(proj)}
+                          className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-800 transition cursor-pointer"
+                          title="Edit Project"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirm({ type: 'project', id: proj.id, name: proj.name })}
+                          className="p-1.5 rounded-xl hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                          title="Delete Project"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">

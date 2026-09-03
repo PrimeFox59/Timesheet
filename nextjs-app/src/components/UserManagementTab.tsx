@@ -36,6 +36,7 @@ export default function UserManagementTab({ usersList, currentUser, onRefreshUse
   const availableRoles = [
     'Site Admin',
     'Commissioning Director',
+    'Site Director',
     'Commissioning Lead Advisor',
     'Process Lead Advisor',
     'Equipment Expert',

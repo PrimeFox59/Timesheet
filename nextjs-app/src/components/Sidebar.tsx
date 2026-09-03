@@ -72,7 +72,7 @@ export default function Sidebar({
         ...(isSuperUser || systemSettings?.enable_workhour_analytics !== false ? [{ id: 'workhour_analytics', label: 'Work Hour Analytics Dashboard', icon: BarChart3 }] : [])
       ]
     }] : []),
-    ...(isSuperUser || systemSettings?.menu_user_management !== false ? [{
+    ...(isSuperUser || (isDirector && systemSettings?.menu_user_management !== false) ? [{
       id: 'user_management',
       title: 'USER MANAGEMENT',
       desc: 'User directory, master edit & profile preferences',
@@ -83,13 +83,13 @@ export default function Sidebar({
         { id: 'user_settings', label: 'User Settings', icon: Sliders }
       ]
     }] : []),
-    ...(isSuperUser || (isDirector && systemSettings?.menu_audit_log !== false && systemSettings?.enable_audit_log !== false) ? [{
+    ...(isSuperUser || isDirector || (systemSettings?.menu_audit_log !== false && systemSettings?.enable_audit_log !== false) ? [{
       id: 'audit_log',
       title: 'AUDIT LOG',
-      desc: 'Privileged system security audit trail',
+      desc: isDirector ? 'Privileged system security audit trail' : 'Personal audit log & activity trail',
       icon: ShieldCheck,
       subTabs: [
-        { id: 'audit_log', label: 'System Audit Log', icon: ShieldCheck }
+        { id: 'audit_log', label: isDirector ? 'System Audit Log' : 'My Audit Log', icon: ShieldCheck }
       ]
     }] : []),
     ...(isSuperUser || (isDirector && systemSettings?.menu_database !== false && systemSettings?.enable_database_migration !== false) ? [{

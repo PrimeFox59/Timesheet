@@ -553,7 +553,7 @@ export default function Home() {
                 </>
               )}
 
-              {activeCategory === 'user_management' && (
+              {activeCategory === 'user_management' && (isSuperUser || isDirector) && (
                 <>
                   <button
                     onClick={() => changeSubTab('user_directory')}
@@ -589,7 +589,7 @@ export default function Home() {
                 </>
               )}
 
-              {activeCategory === 'audit_log' && isDirector && (
+              {activeCategory === 'audit_log' && (
                 <button
                   onClick={() => changeSubTab('audit_log')}
                   className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
@@ -597,7 +597,7 @@ export default function Home() {
                   }`}
                 >
                   <ShieldCheck className="w-4 h-4" />
-                  <span>Audit Log</span>
+                  <span>{isDirector ? 'System Audit Log' : 'My Audit Log'}</span>
                 </button>
               )}
 
@@ -650,7 +650,7 @@ export default function Home() {
               )}
 
               {/* USER MANAGEMENT TABS */}
-              {activeSubTab === 'user_directory' && (
+              {activeSubTab === 'user_directory' && (isSuperUser || isDirector) && (
                 <UserManagementTab
                   usersList={usersList}
                   currentUser={user}
@@ -686,7 +686,7 @@ export default function Home() {
               )}
 
               {/* AUDIT LOG TAB */}
-              {activeSubTab === 'audit_log' && isDirector && (
+              {activeSubTab === 'audit_log' && (
                 <AuditLogTab currentUser={user} />
               )}
 

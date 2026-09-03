@@ -9,6 +9,14 @@ interface AuditLogTabProps {
 }
 
 export default function AuditLogTab({ currentUser }: AuditLogTabProps) {
+  const isSuperUser = currentUser?.id?.toLowerCase() === 'prime' || 
+                      currentUser?.id?.toLowerCase() === 'com116' || 
+                      currentUser?.role?.toLowerCase() === 'superuser';
+  const isDirector = currentUser?.role?.includes('Director') || 
+                     currentUser?.role?.toLowerCase()?.includes('director') || 
+                     currentUser?.role === 'Site Admin' || 
+                     isSuperUser;
+
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [selectedUser, setSelectedUser] = useState('All');
@@ -22,11 +30,13 @@ export default function AuditLogTab({ currentUser }: AuditLogTabProps) {
     setLoading(true);
     try {
       const query = new URLSearchParams();
+      query.append('userId', currentUser?.id || '');
+      query.append('userRole', currentUser?.role || '');
       if (startDate) query.append('startDate', startDate);
       if (endDate) query.append('endDate', endDate);
-      if (selectedUser) query.append('user', selectedUser);
-      if (selectedAction) query.append('action', selectedAction);
-      if (selectedStatus) query.append('status', selectedStatus);
+      if (isDirector && selectedUser && selectedUser !== 'All') query.append('user', selectedUser);
+      if (selectedAction && selectedAction !== 'All') query.append('action', selectedAction);
+      if (selectedStatus && selectedStatus !== 'All') query.append('status', selectedStatus);
 
       const res = await fetch(apiUrl(`/api/audit-log?${query.toString()}`));
       const data = await res.json();
@@ -53,10 +63,12 @@ export default function AuditLogTab({ currentUser }: AuditLogTabProps) {
         <div>
           <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-[#FF6B00]" />
-            System Audit Log
+            {isDirector ? 'System Audit Log' : 'My Personal Audit Log'}
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Privileged audit trail tracking login events, timesheet submissions, password resets, and master edits.
+            {isDirector 
+              ? 'Privileged audit trail tracking login events, timesheet submissions, password resets, and master edits across all users.'
+              : 'Personal audit trail tracking your own login events, timesheet submissions, and account activity.'}
           </p>
         </div>
 
@@ -72,10 +84,17 @@ export default function AuditLogTab({ currentUser }: AuditLogTabProps) {
 
       {/* Filter Bar */}
       <div className="glass-card rounded-2xl p-5 space-y-4">
-        <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-          <Filter className="w-4 h-4 text-[#FF6B00]" />
-          Filter Audit Entries
-        </h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+            <Filter className="w-4 h-4 text-[#FF6B00]" />
+            Filter Audit Entries
+          </h3>
+          {!isDirector && (
+            <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-orange-100 text-[#FF6B00] border border-orange-200">
+              Personal Scope: {currentUser?.username || currentUser?.id}
+            </span>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
           <div>

@@ -23,15 +23,19 @@ export async function GET(request: Request) {
     const conditions: string[] = [];
     const params: any[] = [];
 
-    if (!isPrivileged && userId) {
-      conditions.push(`(
-        p.created_by = ? 
-        OR p.manager_id = ? 
-        OR p.id IN (SELECT project_id FROM project_members WHERE user_id = ?) 
-        OR t.assignee_id = ?
-        OR t.delegated_by = ?
-      )`);
-      params.push(userId, userId, userId, userId, userId);
+    if (!isPrivileged) {
+      if (userId) {
+        conditions.push(`(
+          p.created_by = ? 
+          OR p.manager_id = ? 
+          OR p.id IN (SELECT project_id FROM project_members WHERE user_id = ?) 
+          OR t.assignee_id = ?
+          OR t.delegated_by = ?
+        )`);
+        params.push(userId, userId, userId, userId, userId);
+      } else {
+        conditions.push('1 = 0');
+      }
     }
 
     if (projectId && projectId !== 'ALL') {
