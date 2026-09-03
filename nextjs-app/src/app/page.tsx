@@ -22,6 +22,7 @@ import InteractiveAppTour from '@/components/InteractiveAppTour';
 import ProfileSettingsModal from '@/components/ProfileSettingsModal';
 import FaceIdLoginModal from '@/components/FaceIdLoginModal';
 import SuperuserTab from '@/components/SuperuserTab';
+import DataCorrectionsTab from '@/components/DataCorrectionsTab';
 import { useToast } from '@/components/Toast';
 import { apiUrl } from '@/lib/api';
 import { 
@@ -42,7 +43,8 @@ import {
   ShieldAlert, 
   FolderKanban, 
   CheckCircle2,
-  HelpCircle 
+  HelpCircle,
+  TableProperties
 } from 'lucide-react';
 
 export default function Home() {
@@ -537,6 +539,21 @@ export default function Home() {
                     <Sliders className="w-4 h-4" />
                     <span>User Settings</span>
                   </button>
+
+                  {isSuperUser && (
+                    <button
+                      id="tour-subtab-corrections"
+                      onClick={() => changeSubTab('data_corrections')}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer ${
+                        activeSubTab === 'data_corrections' ? 'btn-orange shadow scale-[1.02]' : 'text-slate-600 hover:bg-white/60'
+                      }`}
+                      title="Superuser Excel Editor: Edit or delete records from any user"
+                    >
+                      <TableProperties className="w-4 h-4 text-emerald-600" />
+                      <span>Data Corrections</span>
+                      <span className="px-1.5 py-0.2 rounded-md bg-amber-500/20 text-amber-800 text-[10px] font-mono font-black border border-amber-500/30">SU</span>
+                    </button>
+                  )}
                 </>
               )}
 
@@ -712,6 +729,14 @@ export default function Home() {
                   currentUser={user}
                   areasList={areasList}
                   onUpdateUser={(updated) => handleUpdateUserSession({ ...user, ...updated })}
+                />
+              )}
+
+              {activeSubTab === 'data_corrections' && isSuperUser && (
+                <DataCorrectionsTab
+                  currentUser={user}
+                  usersList={usersList}
+                  areasList={areasList}
                 />
               )}
 

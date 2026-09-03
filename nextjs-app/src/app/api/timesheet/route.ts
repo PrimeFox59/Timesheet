@@ -170,3 +170,114 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
   }
 }
+
+export async function PUT(request: Request) {
+  try {
+    const body = await request.json();
+    const { rows, adminId, adminName } = body;
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return NextResponse.json({ error: 'No rows provided to update' }, { status: 400 });
+    }
+
+    const timestamp = getWibTimestamp();
+
+    const updateStmt = db.prepare(`
+      UPDATE presensi 
+      SET working_hours = ?, hours = ?, overtime_hours = ?, overtime = ?, 
+          area1 = ?, area2 = ?, area3 = ?, area4 = ?, shift = ?, remark = ?,
+          timestamp = ?
+      WHERE id = ?
+    `);
+
+    const updateTransaction = db.transaction((items: any[]) => {
+      for (const item of items) {
+        const hrs = Number(item.working_hours ?? item.hours ?? 0);
+        const ot = Number(item.overtime_hours ?? item.overtime ?? 0);
+        const a1 = item.area1 || 'CMN';
+        const a2 = item.area2 || 'CMN';
+        const a3 = item.area3 || '';
+        const a4 = item.area4 || '';
+        const sft = item.shift || 'Day Shift';
+        const rmk = item.remark || '';
+
+        updateStmt.run(hrs, hrs, ot, ot, a1, a2, a3, a4, sft, rmk, timestamp, item.id);
+      }
+    });
+
+    updateTransaction(rows);
+
+    // Audit Log
+    db.prepare(`
+      INSERT INTO audit_log (timestamp, user_id, username, action, description, status)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      timestamp,
+      adminId || 'superuser',
+      adminName || 'Superuser',
+      'Superuser Batch Correction',
+      `Superuser corrected ${rows.length} timesheet records directly via Excel Data Editor`,
+      'Success'
+    );
+
+    await broadcastRealtimeEvent('timesheet_updated', {
+      action: 'superuser_correction',
+      count: rows.length,
+      timestamp
+    });
+
+    return NextResponse.json({ success: true, message: `Successfully saved ${rows.length} corrected records!` });
+  } catch (error: any) {
+    console.error('PUT /api/timesheet error:', error);
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    const adminId = searchParams.get('adminId');
+    const adminName = searchParams.get('adminName') || 'Superuser';
+
+    if (!id) {
+      return NextResponse.json({ error: 'Missing entry id to delete' }, { status: 400 });
+    }
+
+    const entry = db.prepare(`SELECT * FROM presensi WHERE id = ?`).get(id) as any;
+    if (!entry) {
+      return NextResponse.json({ error: 'Record not found' }, { status: 404 });
+    }
+
+    db.prepare(`DELETE FROM presensi WHERE id = ?`).run(id);
+
+    const timestamp = getWibTimestamp();
+
+    // Audit Log
+    db.prepare(`
+      INSERT INTO audit_log (timestamp, user_id, username, action, description, status)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      timestamp,
+      adminId || 'superuser',
+      adminName,
+      'Superuser Delete Record',
+      `Deleted timesheet record #${id} for user ${entry.username} (${entry.user_id}) date ${entry.date}`,
+      'Success'
+    );
+
+    await broadcastRealtimeEvent('timesheet_updated', {
+      action: 'delete',
+      id,
+      user_id: entry.user_id,
+      username: entry.username,
+      date: entry.date,
+      timestamp
+    });
+
+    return NextResponse.json({ success: true, message: 'Record deleted successfully!' });
+  } catch (error: any) {
+    console.error('DELETE /api/timesheet error:', error);
+    return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
+  }
+}
