@@ -43,16 +43,17 @@ export async function GET(request: Request) {
     let unreadCount = 0;
     let latestUnreadSender = '';
     let latestUnreadText = '';
+    let latestUnreadChannel = 'ALL';
 
     if (userId) {
       const allCandidateUnreads = db.prepare(`
-        SELECT sender_id, sender_name, message, read_by 
+        SELECT sender_id, sender_name, recipient_id, message, read_by 
         FROM chat_messages 
         WHERE sender_id != ? 
           AND (recipient_id = ? OR recipient_id = 'ALL')
         ORDER BY id DESC
         LIMIT 50
-      `).all(userId, userId);
+      `).all(userId, userId) as any[];
 
       for (const msg of allCandidateUnreads) {
         let readList: string[] = [];
@@ -67,6 +68,7 @@ export async function GET(request: Request) {
           if (!latestUnreadSender) {
             latestUnreadSender = msg.sender_name;
             latestUnreadText = msg.message;
+            latestUnreadChannel = msg.recipient_id === 'ALL' ? 'ALL' : msg.sender_id;
           }
         }
       }
@@ -77,7 +79,8 @@ export async function GET(request: Request) {
       messages,
       unreadCount,
       latestUnreadSender,
-      latestUnreadText
+      latestUnreadText,
+      latestUnreadChannel
     });
 
   } catch (error: any) {

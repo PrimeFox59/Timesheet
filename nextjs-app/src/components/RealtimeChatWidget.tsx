@@ -81,6 +81,8 @@ export default function RealtimeChatWidget({
   const [inputText, setInputText] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
   const [latestSenderName, setLatestSenderName] = useState('');
+  const [latestSenderId, setLatestSenderId] = useState('');
+  const [latestChannelId, setLatestChannelId] = useState<string>('ALL');
   const [latestMessageText, setLatestMessageText] = useState('');
   const [searchUserQuery, setSearchUserQuery] = useState('');
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
@@ -153,6 +155,10 @@ export default function RealtimeChatWidget({
         setUnreadCount(data.unreadCount || 0);
         if (data.latestUnreadSender) setLatestSenderName(data.latestUnreadSender);
         if (data.latestUnreadText) setLatestMessageText(data.latestUnreadText);
+        if (data.latestUnreadChannel) {
+          setLatestChannelId(data.latestUnreadChannel);
+          setLatestSenderId(data.latestUnreadChannel);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch chat messages:', err);
@@ -245,6 +251,9 @@ export default function RealtimeChatWidget({
               if (!isOpen || !isForCurrentChannel) {
                 setUnreadCount((prev) => prev + 1);
                 setLatestSenderName(incomingMsg.sender_name);
+                setLatestSenderId(incomingMsg.sender_id);
+                const targetChannel = incomingMsg.recipient_id === 'ALL' ? 'ALL' : incomingMsg.sender_id;
+                setLatestChannelId(targetChannel);
                 setLatestMessageText(incomingMsg.message || (incomingMsg.file_name ? `📎 ${incomingMsg.file_name}` : 'Sent an attachment'));
                 if (onNewMessageIncoming) onNewMessageIncoming(incomingMsg);
               }
@@ -317,6 +326,74 @@ export default function RealtimeChatWidget({
 
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [unreadCount, latestSenderName, latestMessageText, isOpen]);
+
+  // Open related conversation directly on callout pill click
+  const handleOpenLatestChat = () => {
+    const target = latestChannelId || 'ALL';
+    setActiveChannel(target);
+    setActiveTab(target === 'ALL' ? 'channels' : 'direct');
+    setIsOpen(true);
+    setIsMinimized(false);
+    setUnreadCount(0);
+    setTypewriterText('');
+    fetchRecentChats();
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    }, 200);
+  };
+
+  // 🖥️ BROWSER TAB RUNNING TEXT & TYPEWRITER EFFECT 🖥️
+  useEffect(() => {
+    const BASE_TITLE = 'Timesheet METSO | Commissioning Management System';
+
+    if (unreadCount === 0 || isOpen) {
+      document.title = BASE_TITLE;
+      return;
+    }
+
+    const cleanSnippet = (latestMessageText || 'New message').replace(/\s+/g, ' ').trim();
+    const shortSnippet = cleanSnippet.length > 32 ? cleanSnippet.substring(0, 30) + '...' : cleanSnippet;
+    const sender = latestSenderName || 'Team';
+    const notificationText = `(${unreadCount}) 💬 ${sender}: "${shortSnippet}" • Timesheet METSO`;
+
+    let charIndex = 0;
+    let mode: 'typing' | 'marquee' = 'typing';
+    let marqueeOffset = 0;
+    let timer: NodeJS.Timeout;
+
+    const tickTabTitle = () => {
+      if (mode === 'typing') {
+        charIndex++;
+        document.title = notificationText.substring(0, charIndex);
+
+        if (charIndex >= notificationText.length) {
+          // Hold at full text for 2.2 seconds before transitioning to marquee scroll
+          timer = setTimeout(() => {
+            mode = 'marquee';
+            tickTabTitle();
+          }, 2200);
+          return;
+        }
+        timer = setTimeout(tickTabTitle, 130); // Typewriter speed (130ms per char)
+      } else {
+        // Running marquee ticker effect
+        const padded = `${notificationText}       `;
+        const scrolled = padded.substring(marqueeOffset) + padded.substring(0, marqueeOffset);
+        document.title = scrolled;
+        marqueeOffset = (marqueeOffset + 1) % padded.length;
+        timer = setTimeout(tickTabTitle, 240); // Running ticker speed (240ms per step)
+      }
+    };
+
+    timer = setTimeout(tickTabTitle, 200);
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      document.title = BASE_TITLE;
     };
   }, [unreadCount, latestSenderName, latestMessageText, isOpen]);
 
@@ -500,8 +577,9 @@ export default function RealtimeChatWidget({
       {/* 🔴 TYPEWRITER CALLOUT BUBBLE 🔴 */}
       {unreadCount > 0 && !isOpen && typewriterText && (
         <div 
-          onClick={() => setIsOpen(true)}
+          onClick={handleOpenLatestChat}
           className="mb-3 cursor-pointer group relative animate-in fade-in slide-in-from-bottom-2 duration-200 select-none max-w-xs"
+          title={`Click to open chat with ${latestSenderName || 'team'}`}
         >
           {/* Glowing Animated Ring */}
           <div className="absolute -inset-1 rounded-2xl bg-gradient-to-r from-[#FF6B00] via-amber-400 to-[#FF6B00] opacity-80 blur-xs group-hover:opacity-100 animate-pulse transition duration-200" />
@@ -531,9 +609,13 @@ export default function RealtimeChatWidget({
       {!isOpen && (
         <button
           onClick={() => {
-            setIsOpen(true);
-            setIsMinimized(false);
-            setUnreadCount(0);
+            if (unreadCount > 0 && latestChannelId) {
+              handleOpenLatestChat();
+            } else {
+              setIsOpen(true);
+              setIsMinimized(false);
+              setUnreadCount(0);
+            }
           }}
           className="relative w-14 h-14 rounded-full bg-gradient-to-tr from-[#FF6B00] via-[#FF7A1A] to-[#FF5500] hover:from-[#FF7A1A] hover:to-[#FF6B00] text-white shadow-xl shadow-orange-600/40 hover:shadow-orange-600/60 flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 group focus:outline-none focus:ring-4 focus:ring-orange-400/30"
           title="Open Commissioning Chat"
