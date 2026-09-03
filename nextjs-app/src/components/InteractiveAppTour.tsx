@@ -118,12 +118,12 @@ const TOUR_STEPS: TourStep[] = [
     subTab: 'timesheet_entry'
   },
 
-  // 8. TIMESHEET FEATURE: Cara Edit Timesheet yang Sudah di-Submit
+  // 8. TIMESHEET FEATURE: Editing Already Submitted Timesheets
   {
     targetId: 'tour-timesheet-table',
     tag: 'TIMESHEET FEATURE: REVISION',
-    title: '5. Cara Edit Timesheet yang Sudah di-Submit',
-    content: 'Ingin merevisi jam, shift, area, atau remark pada data yang sudah pernah di-submit? Cukup pilih kembali rentang tanggal (Start Date & End Date) dari periode yang ingin diubah. Data lama otomatis ditarik dan termuat ke tabel grid. Lakukan perbaikan langsung di baris tabel, lalu klik kembali "Submit Timesheet" untuk menyimpan revisi data ke server!',
+    title: '5. Editing Already Submitted Timesheets',
+    content: 'Need to revise hours, shifts, areas, or remarks for a timesheet that was already submitted? Simply re-select the Start Date & End Date of that week in the Date Range picker. Your saved records will automatically load into the grid. Edit the entries directly in the table, then click "Submit Timesheet" again to save your updates to the server!',
     icon: Edit3,
     preferredPosition: 'top',
     category: 'timesheet',
