@@ -55,6 +55,10 @@ export default function RealtimeSocketProvider({
               `Work area ${data?.name || ''} was modified.`
             );
             if (onAreasUpdated) onAreasUpdated();
+          } else if (event === 'presence_updated') {
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('presence_updated', { detail: data }));
+            }
           }
         } catch (err) {
           // Ignore keepalive or parse error

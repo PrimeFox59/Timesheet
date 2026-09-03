@@ -63,12 +63,12 @@ export default function RightSidebarOnlineUsers({
     const timer = setInterval(() => {
       sendHeartbeat();
       fetchOnlineUsers();
-    }, 25000);
+    }, 15000);
 
     return () => clearInterval(timer);
   }, [currentUser?.id]);
 
-  // Listen to SSE presence updates
+  // Listen to SSE presence updates and window broadcast events
   useEffect(() => {
     let eventSource: EventSource | null = null;
     try {
@@ -83,8 +83,15 @@ export default function RightSidebarOnlineUsers({
       };
     } catch {}
 
+    const handleWindowPresence = () => {
+      fetchOnlineUsers();
+    };
+
+    window.addEventListener('presence_updated', handleWindowPresence);
+
     return () => {
       if (eventSource) eventSource.close();
+      window.removeEventListener('presence_updated', handleWindowPresence);
     };
   }, []);
 

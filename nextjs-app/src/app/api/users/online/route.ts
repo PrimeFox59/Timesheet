@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -19,21 +21,28 @@ export async function GET(request: Request) {
         username ASC
     `).all(currentUserId || '');
 
-    const now = new Date().getTime();
-    const fiveMinutesMs = 5 * 60 * 1000;
+    const now = Date.now();
+    // A user is considered online if heartbeat was received within the last 60 seconds (heartbeat pulse is every 15-20s)
+    const ONLINE_TIMEOUT_MS = 60 * 1000;
 
     let onlineCount = 0;
 
     const mappedUsers = allUsers.map((u: any) => {
       let isOnline = false;
 
-      // Current user is always online
+      // Current user is online if actively requesting from session
       if (currentUserId && u.id.toLowerCase() === currentUserId.toLowerCase()) {
         isOnline = true;
-      } else if (u.last_active) {
-        const lastActiveTime = new Date(u.last_active.replace(' ', 'T') + 'Z').getTime();
-        if (!isNaN(lastActiveTime) && now - lastActiveTime < fiveMinutesMs) {
-          isOnline = true;
+      } else if (u.last_active && typeof u.last_active === 'string' && u.last_active.trim() !== '') {
+        // Parse WIB timestamp ('YYYY-MM-DD HH:mm:ss') accurately with +07:00 timezone offset
+        const isoWibStr = u.last_active.trim().replace(' ', 'T') + '+07:00';
+        const lastActiveTime = new Date(isoWibStr).getTime();
+        if (!isNaN(lastActiveTime)) {
+          const diffMs = now - lastActiveTime;
+          // Must be strictly within the last 60 seconds (with 5s tolerance for slight clock drift)
+          if (diffMs >= -5000 && diffMs <= ONLINE_TIMEOUT_MS) {
+            isOnline = true;
+          }
         }
       }
 

@@ -159,14 +159,31 @@ export default function Home() {
         await fetch(apiUrl('/api/realtime/heartbeat'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.id })
+          body: JSON.stringify({ user_id: user.id, id: user.id })
         });
       } catch (e) {}
     };
 
     sendHeartbeat();
-    const interval = setInterval(sendHeartbeat, 30000);
-    return () => clearInterval(interval);
+    const interval = setInterval(sendHeartbeat, 20000);
+
+    // If user closes tab / window, notify server immediately via sendBeacon
+    const handleBeforeUnload = () => {
+      try {
+        const payload = JSON.stringify({ user_id: user.id });
+        if (navigator.sendBeacon) {
+          const blob = new Blob([payload], { type: 'application/json' });
+          navigator.sendBeacon(apiUrl('/api/auth/logout'), blob);
+        }
+      } catch (e) {}
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
   }, [user]);
 
   const handleLogin = async (e?: React.FormEvent) => {
@@ -204,7 +221,8 @@ export default function Home() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const prevUser = user;
     setUser(null);
     setActiveCategory('timesheet');
     setActiveSubTab('timesheet_entry');
@@ -214,6 +232,16 @@ export default function Home() {
       localStorage.setItem('metso_active_subtab', 'timesheet_entry');
     } catch (e) {}
     toast.info('Logged out successfully');
+
+    if (prevUser?.id) {
+      try {
+        await fetch(apiUrl('/api/auth/logout'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: prevUser.id })
+        });
+      } catch (e) {}
+    }
   };
 
   // Guard activeCategory: If user is not authorized for current tab, immediately redirect to timesheet

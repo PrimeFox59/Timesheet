@@ -65,10 +65,15 @@ export async function GET(request: Request) {
         }
       }
 
-      const isOnline = Boolean(
-        user?.last_active && 
-        user.last_active >= fiveMinutesAgo
-      );
+      let isOnline = false;
+      if (user?.last_active && typeof user.last_active === 'string' && user.last_active.trim() !== '') {
+        const isoWibStr = user.last_active.trim().replace(' ', 'T') + '+07:00';
+        const lastActiveTime = new Date(isoWibStr).getTime();
+        if (!isNaN(lastActiveTime)) {
+          const diffMs = Date.now() - lastActiveTime;
+          isOnline = diffMs >= -5000 && diffMs <= 60 * 1000;
+        }
+      }
 
       let snippet = latestMsg?.message || '';
       if (!snippet && latestMsg?.file_name) {

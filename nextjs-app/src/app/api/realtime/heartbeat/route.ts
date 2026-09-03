@@ -5,18 +5,31 @@ import { getWibTimestamp } from '@/lib/dateUtils';
 
 export async function POST(request: Request) {
   try {
-    const { user_id } = await request.json();
+    const body = await request.json().catch(() => ({}));
+    const user_id = body.user_id || body.id;
+    const action = body.action;
 
     if (!user_id) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
+    if (action === 'logout' || action === 'offline') {
+      db.prepare("UPDATE users SET last_active = '' WHERE LOWER(id) = LOWER(?)").run(user_id);
+      await broadcastRealtimeEvent('presence_updated', {
+        user_id,
+        is_online: false,
+        timestamp: ''
+      });
+      return NextResponse.json({ success: true, is_online: false });
+    }
+
     const timestamp = getWibTimestamp();
 
-    db.prepare('UPDATE users SET last_active = ? WHERE id = ?').run(timestamp, user_id);
+    db.prepare('UPDATE users SET last_active = ? WHERE LOWER(id) = LOWER(?)').run(timestamp, user_id);
 
     await broadcastRealtimeEvent('presence_updated', {
       user_id,
+      is_online: true,
       timestamp
     });
 
