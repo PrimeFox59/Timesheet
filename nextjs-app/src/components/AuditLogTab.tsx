@@ -55,6 +55,29 @@ export default function AuditLogTab({ currentUser }: AuditLogTabProps) {
     fetchAuditLogs();
   }, []);
 
+  // Realtime updates for audit logs whenever any system action occurs
+  useEffect(() => {
+    const handleAuditRealtime = () => {
+      fetchAuditLogs();
+    };
+
+    window.addEventListener('timesheet_updated', handleAuditRealtime);
+    window.addEventListener('user_updated', handleAuditRealtime);
+    window.addEventListener('area_updated', handleAuditRealtime);
+    window.addEventListener('project_updated', handleAuditRealtime);
+    window.addEventListener('task_updated', handleAuditRealtime);
+    window.addEventListener('system_settings_updated', handleAuditRealtime);
+
+    return () => {
+      window.removeEventListener('timesheet_updated', handleAuditRealtime);
+      window.removeEventListener('user_updated', handleAuditRealtime);
+      window.removeEventListener('area_updated', handleAuditRealtime);
+      window.removeEventListener('project_updated', handleAuditRealtime);
+      window.removeEventListener('task_updated', handleAuditRealtime);
+      window.removeEventListener('system_settings_updated', handleAuditRealtime);
+    };
+  }, [startDate, endDate, selectedUser, selectedAction, selectedStatus]);
+
   return (
     <div className="space-y-6 animate-smooth-fade">
       

@@ -310,6 +310,9 @@ export default function Home() {
         onAreasUpdated={() => {
           fetchMasterAreas();
         }}
+        onSystemSettingsUpdated={(newSettings) => {
+          setSystemSettings(prev => ({ ...prev, ...newSettings }));
+        }}
       />
 
       {user && (

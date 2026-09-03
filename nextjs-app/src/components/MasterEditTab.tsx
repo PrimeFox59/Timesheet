@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Database, Plus, Trash2, KeyRound, CheckCircle2, AlertCircle } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 import { useToast } from '@/components/Toast';
@@ -20,6 +20,15 @@ export default function MasterEditTab({ currentUser, areasList, usersList, onRef
 
   const [selectedUserId, setSelectedUserId] = useState(usersList[0]?.id || '');
   const [newPassword, setNewPassword] = useState('');
+
+  // Realtime synchronization for work areas
+  useEffect(() => {
+    const handleAreaUpdate = () => {
+      onRefreshAreas();
+    };
+    window.addEventListener('area_updated', handleAreaUpdate);
+    return () => window.removeEventListener('area_updated', handleAreaUpdate);
+  }, [onRefreshAreas]);
 
   const handleAddArea = async (e: React.FormEvent) => {
     e.preventDefault();

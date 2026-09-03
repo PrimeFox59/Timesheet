@@ -102,6 +102,23 @@ export default function CodexTab({ currentUser, usersList }: CodexTabProps) {
     fetchMonitoringData();
   }, [selectedMonth]);
 
+  // Realtime updates: Re-fetch monitoring data whenever a timesheet is submitted or approved
+  useEffect(() => {
+    const handleRealtimeUpdate = () => {
+      fetchMonitoringData();
+    };
+
+    window.addEventListener('timesheet_updated', handleRealtimeUpdate);
+    window.addEventListener('timesheet_bulk_approved', handleRealtimeUpdate);
+    window.addEventListener('user_updated', handleRealtimeUpdate);
+
+    return () => {
+      window.removeEventListener('timesheet_updated', handleRealtimeUpdate);
+      window.removeEventListener('timesheet_bulk_approved', handleRealtimeUpdate);
+      window.removeEventListener('user_updated', handleRealtimeUpdate);
+    };
+  }, [selectedMonth]);
+
   // Filtering and Sorting Computed Data
   const filteredAndSortedData = useMemo(() => {
     let result = [...monitoringData];

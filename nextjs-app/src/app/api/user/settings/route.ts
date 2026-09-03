@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { getWibTimestamp } from '@/lib/dateUtils';
+import { broadcastRealtimeEvent } from '@/lib/socketBroadcaster';
 
 async function handleSettingsUpdate(request: Request) {
   try {
@@ -91,6 +92,12 @@ async function handleSettingsUpdate(request: Request) {
       `).run(timestamp, user.id, targetUsername || user.username, 'User Settings Update', logDesc, 'Success');
 
       const updatedUser = db.prepare('SELECT id, username, role, grade, preferred_areas, preferred_shift, number_of_areas, phone, email, avatar, face_descriptor, face_photo, face_registered_at FROM users WHERE id = ?').get(user_id);
+
+      await broadcastRealtimeEvent('user_updated', {
+        action: action,
+        id: user_id,
+        user: updatedUser
+      });
 
       return NextResponse.json({ success: true, message: 'Preferences updated successfully', user: updatedUser });
     }

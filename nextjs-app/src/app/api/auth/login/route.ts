@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import '@/lib/seed';
 import { getWibTimestamp } from '@/lib/dateUtils';
+import { broadcastRealtimeEvent } from '@/lib/socketBroadcaster';
 
 export async function POST(request: Request) {
   try {
@@ -33,11 +34,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid User ID or Password' }, { status: 401 });
     }
 
-    // Log successful login
-    db.prepare(`
-      INSERT INTO audit_log (timestamp, user_id, username, action, description, status)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(timestamp, user.id, user.username, 'Login', 'Successful login to Timesheet METSO.', 'Success');
+    // Update presence in SQLite
+    db.prepare('UPDATE users SET last_active = ? WHERE LOWER(id) = LOWER(?)').run(timestamp, user.id);
+
+    // Broadcast live presence event immediately
+    await broadcastRealtimeEvent('presence_updated', {
+      user_id: user.id,
+      is_online: true,
+      timestamp
+    });
 
     return NextResponse.json({
       success: true,

@@ -244,6 +244,23 @@ export default function ProjectManagerTab({
     fetchData();
   }, [currentUser?.id, currentUser?.role]);
 
+  // Realtime synchronization for projects and delegated tasks
+  useEffect(() => {
+    const handleRealtimeProjectEvent = () => {
+      fetchData();
+    };
+
+    window.addEventListener('project_updated', handleRealtimeProjectEvent);
+    window.addEventListener('task_updated', handleRealtimeProjectEvent);
+    window.addEventListener('user_updated', handleRealtimeProjectEvent);
+
+    return () => {
+      window.removeEventListener('project_updated', handleRealtimeProjectEvent);
+      window.removeEventListener('task_updated', handleRealtimeProjectEvent);
+      window.removeEventListener('user_updated', handleRealtimeProjectEvent);
+    };
+  }, [currentUser?.id, currentUser?.role]);
+
   // Filtered Tasks
   const filteredTasks = useMemo(() => {
     return tasks.filter(t => {

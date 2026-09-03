@@ -181,9 +181,17 @@ export async function POST(request: Request) {
       WHERE pm.project_id = ?
     `).all(newProjectId);
 
+    const newProjectData = { ...newProject, members, member_ids: members.map((m: any) => m.user_id) };
+
+    await broadcastRealtimeEvent('project_updated', {
+      action: 'create',
+      project_id: newProjectId,
+      project: newProjectData
+    });
+
     return NextResponse.json({ 
       success: true, 
-      project: { ...newProject, members, member_ids: members.map((m: any) => m.user_id) }, 
+      project: newProjectData, 
       message: 'Project and member invitations saved successfully.' 
     });
   } catch (error: any) {
@@ -273,9 +281,17 @@ export async function PUT(request: Request) {
       WHERE pm.project_id = ?
     `).all(id);
 
+    const updatedProjectData = { ...updated, members, member_ids: members.map((m: any) => m.user_id) };
+
+    await broadcastRealtimeEvent('project_updated', {
+      action: 'update',
+      project_id: id,
+      project: updatedProjectData
+    });
+
     return NextResponse.json({ 
       success: true, 
-      project: { ...updated, members, member_ids: members.map((m: any) => m.user_id) }, 
+      project: updatedProjectData, 
       message: 'Project and team members updated successfully.' 
     });
   } catch (error: any) {
@@ -297,6 +313,11 @@ export async function DELETE(request: Request) {
     db.prepare('DELETE FROM project_members WHERE project_id = ?').run(id);
     db.prepare('DELETE FROM tasks WHERE project_id = ?').run(id);
     db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+
+    await broadcastRealtimeEvent('project_updated', {
+      action: 'delete',
+      project_id: id
+    });
 
     return NextResponse.json({ success: true, message: 'Project, team members, and associated tasks deleted successfully.' });
   } catch (error: any) {

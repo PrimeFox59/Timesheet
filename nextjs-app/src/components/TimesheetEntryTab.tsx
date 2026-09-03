@@ -91,6 +91,20 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
   const [rows, setRows] = useState<DayRowState[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Listen to timesheet_updated realtime events
+  useEffect(() => {
+    const handleTimesheetRealtime = (e: any) => {
+      const detail = e.detail;
+      if (!detail || !detail.user_id || detail.user_id.toLowerCase() === user?.id?.toLowerCase() || detail.action === 'bulk_approve') {
+        setRefreshTrigger(prev => prev + 1);
+      }
+    };
+
+    window.addEventListener('timesheet_updated', handleTimesheetRealtime);
+    return () => window.removeEventListener('timesheet_updated', handleTimesheetRealtime);
+  }, [user?.id]);
 
   // Fetch saved timesheet records from database and populate table grid
   useEffect(() => {
@@ -187,7 +201,7 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
     return () => {
       isMounted = false;
     };
-  }, [startDate, endDate, user?.id, numAreas]);
+  }, [startDate, endDate, user?.id, numAreas, refreshTrigger]);
 
   // Row edit handlers
   const handleCellChange = (index: number, field: keyof DayRowState, val: any) => {

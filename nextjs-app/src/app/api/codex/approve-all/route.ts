@@ -60,7 +60,14 @@ export async function POST(request: Request) {
     const approvedCount = bulkTransaction(usersToApprove);
 
     // Notify all connected clients via SSE stream
-    emitRealtimeEvent('TIMESHEET_BULK_APPROVED', {
+    emitRealtimeEvent('timesheet_updated', {
+      action: 'bulk_approve',
+      month,
+      approved_count: approvedCount,
+      approver: approver_name || approver_id,
+      timestamp
+    });
+    emitRealtimeEvent('timesheet_bulk_approved', {
       month,
       approved_count: approvedCount,
       approver: approver_name || approver_id,

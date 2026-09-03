@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { getWibTimestamp } from '@/lib/dateUtils';
+import { broadcastRealtimeEvent } from '@/lib/socketBroadcaster';
 
 export async function GET(request: Request) {
   try {
@@ -135,6 +136,13 @@ export async function POST(request: Request) {
       WHERE t.id = ?
     `).get(result.lastInsertRowid);
 
+    await broadcastRealtimeEvent('task_updated', {
+      action: 'create',
+      project_id,
+      task_id: result.lastInsertRowid,
+      task: newTask
+    });
+
     return NextResponse.json({ success: true, task: newTask, message: 'Task created and delegated successfully' });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
@@ -225,6 +233,13 @@ export async function PUT(request: Request) {
       WHERE t.id = ?
     `).get(id);
 
+    await broadcastRealtimeEvent('task_updated', {
+      action: 'update',
+      project_id: updated?.project_id,
+      task_id: id,
+      task: updated
+    });
+
     return NextResponse.json({ success: true, task: updated, message: 'Task updated successfully' });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });
@@ -240,7 +255,16 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Task ID is required' }, { status: 400 });
     }
 
+    const task: any = db.prepare('SELECT project_id FROM tasks WHERE id = ?').get(id);
+
     db.prepare('DELETE FROM tasks WHERE id = ?').run(id);
+
+    await broadcastRealtimeEvent('task_updated', {
+      action: 'delete',
+      project_id: task?.project_id,
+      task_id: id
+    });
+
     return NextResponse.json({ success: true, message: 'Task deleted successfully' });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Server error' }, { status: 500 });

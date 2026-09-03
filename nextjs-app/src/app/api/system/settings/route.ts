@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { getWibTimestamp } from '@/lib/dateUtils';
+import { broadcastRealtimeEvent } from '@/lib/socketBroadcaster';
 
 const KEY_ALIASES: Record<string, string[]> = {
   enable_face_login: ['feature_face_login'],
@@ -96,6 +97,12 @@ export async function POST(request: Request) {
         }
       }
     }
+
+    await broadcastRealtimeEvent('system_settings_updated', {
+      key,
+      value: valString,
+      settings: settingsMap
+    });
 
     return NextResponse.json({
       success: true,

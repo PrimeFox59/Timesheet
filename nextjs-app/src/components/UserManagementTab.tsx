@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users, Search, RefreshCw, Eye, EyeOff, Shield, Award, UserPlus, Edit2, Trash2, X, CheckCircle, AlertCircle } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
 import { useToast } from '@/components/Toast';
@@ -54,6 +54,15 @@ export default function UserManagementTab({ usersList, currentUser, onRefreshUse
     await onRefreshUsers();
     setLoading(false);
   };
+
+  // Realtime updates when users are added/modified/deleted
+  useEffect(() => {
+    const handleUserUpdated = () => {
+      onRefreshUsers();
+    };
+    window.addEventListener('user_updated', handleUserUpdated);
+    return () => window.removeEventListener('user_updated', handleUserUpdated);
+  }, [onRefreshUsers]);
 
   const togglePasswordVisibility = (userId: string) => {
     setShowPasswords(prev => ({
