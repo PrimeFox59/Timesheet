@@ -108,7 +108,7 @@ export async function POST(request: Request) {
       } catch (e) {}
     }
 
-    // If regular user (non-superuser), strictly validate that all entry dates belong to current running month + 1 week of next month (GMT+7 WIB)
+    // If regular user (non-superuser), strictly validate that all entry dates belong to allowed window: current active month + last 1 week of previous month (GMT+7 WIB)
     if (!isSuperUser) {
       const { minDate, maxDate } = getTimesheetAllowedDateRange();
       for (const row of entries) {

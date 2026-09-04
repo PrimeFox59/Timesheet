@@ -53,7 +53,9 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
 
     // Clamp within current allowed window for non-superusers (and for initial clean view)
     if (!isSuperUser) {
-      if (monday < firstDayOfMonth) monday = firstDayOfMonth;
+      const [minY, minM, minD] = minAllowedDate.split('-').map(Number);
+      const minAllowedDateObj = new Date(minY, minM - 1, minD);
+      if (monday < minAllowedDateObj) monday = minAllowedDateObj;
       const [maxY, maxM, maxD] = maxAllowedDate.split('-').map(Number);
       const maxAllowedDateObj = new Date(maxY, maxM - 1, maxD);
       if (sunday > maxAllowedDateObj) sunday = maxAllowedDateObj;
@@ -412,12 +414,12 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
               ) : lockedRowsCount > 0 ? (
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-900 border border-amber-200 shadow-2xs">
                   <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                  <span>Mixed Range: <strong>{editableRowsCount} Days Editable</strong> (September) &bull; {lockedRowsCount} Past Days (Read-Only)</span>
+                  <span>Mixed Range: <strong>{editableRowsCount} Days Editable</strong> &bull; {lockedRowsCount} Past Days (Read-Only)</span>
                 </div>
               ) : (
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
                   <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                  <span>Active Month: <strong>{currentMonthName} {currentYear}</strong> (Editable)</span>
+                  <span>Active Window: <strong>{formatDateLabel(minAllowedDate)} &rarr; {formatDateLabel(maxAllowedDate)}</strong> (Editable)</span>
                 </div>
               )
             ) : (

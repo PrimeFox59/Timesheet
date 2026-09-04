@@ -96,21 +96,26 @@ export function formatWibDateTime(dateInput: string | Date | number): string {
 
 /**
  * Returns the allowed timesheet submission window [minDate, maxDate] in GMT+07:00 (WIB).
- * Policy: Current active month + 1 week of the following month (1st of current month to 7th of next month).
- * e.g. For September 2026: '2026-09-01' to '2026-10-07'.
+ * Policy: Current active month + last 1 week (7 days) of the previous month (last 7 days of previous month to the end of current month).
+ * e.g. For September 2026: '2026-08-25' to '2026-09-30'.
  */
 export function getTimesheetAllowedDateRange(date: Date = new Date()): { minDate: string; maxDate: string } {
   const wibDate = getWibDateStr(date);
   const [year, month] = wibDate.split('-').map(Number);
 
-  const minDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  // 7 days before the 1st of the current month (last 7 days of previous month)
+  const prevWeekDate = new Date(Date.UTC(year, month - 1, -6));
+  const minY = prevWeekDate.getUTCFullYear();
+  const minM = String(prevWeekDate.getUTCMonth() + 1).padStart(2, '0');
+  const minD = String(prevWeekDate.getUTCDate()).padStart(2, '0');
+  const minDate = `${minY}-${minM}-${minD}`;
 
-  // Next month calculation (month is 1-based, passing month into Date.UTC index gives next month)
-  const nextMonthDate = new Date(Date.UTC(year, month, 7));
-  const nextY = nextMonthDate.getUTCFullYear();
-  const nextM = String(nextMonthDate.getUTCMonth() + 1).padStart(2, '0');
-  const nextD = String(nextMonthDate.getUTCDate()).padStart(2, '0');
-  const maxDate = `${nextY}-${nextM}-${nextD}`;
+  // Last day of the current month
+  const lastDayDate = new Date(Date.UTC(year, month, 0));
+  const maxY = lastDayDate.getUTCFullYear();
+  const maxM = String(lastDayDate.getUTCMonth() + 1).padStart(2, '0');
+  const maxD = String(lastDayDate.getUTCDate()).padStart(2, '0');
+  const maxDate = `${maxY}-${maxM}-${maxD}`;
 
   return { minDate, maxDate };
 }
