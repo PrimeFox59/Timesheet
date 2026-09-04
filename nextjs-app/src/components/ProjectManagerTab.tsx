@@ -87,6 +87,9 @@ export default function ProjectManagerTab({
   initialSubTab = 'gantt_timeline'
 }: ProjectManagerTabProps) {
   const currentSubTab = activeSubTab || initialSubTab;
+  const isProjectListView = currentSubTab === 'project_list' || currentSubTab === 'projects_list';
+  const isTaskDelegationView = currentSubTab === 'task_delegation' || currentSubTab === 'my_delegations';
+  const isGanttTimelineView = currentSubTab === 'gantt_timeline' || (!isProjectListView && !isTaskDelegationView);
   const toast = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -274,12 +277,31 @@ export default function ProjectManagerTab({
         const matchProject = (t.project_name || '').toLowerCase().includes(q);
         if (!matchTitle && !matchAssignee && !matchProject) return false;
       }
-      if (currentSubTab === 'my_delegations') {
+      if (isTaskDelegationView) {
         return t.assignee_id === currentUser?.id || t.delegated_by === currentUser?.id;
       }
       return true;
     });
-  }, [tasks, selectedProjectId, selectedArea, selectedStatus, searchQuery, currentSubTab, currentUser]);
+  }, [tasks, selectedProjectId, selectedArea, selectedStatus, searchQuery, isTaskDelegationView, currentUser]);
+
+  // Filtered Projects for Project List View
+  const filteredProjects = useMemo(() => {
+    return projects.filter(p => {
+      if (selectedProjectId !== 'ALL' && p.id.toString() !== selectedProjectId) return false;
+      if (selectedArea !== 'ALL' && p.area !== selectedArea) return false;
+      if (selectedStatus !== 'ALL' && p.status !== selectedStatus) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchName = (p.name || '').toLowerCase().includes(q);
+        const matchCode = (p.code || '').toLowerCase().includes(q);
+        const matchDesc = (p.description || '').toLowerCase().includes(q);
+        const matchManager = (p.manager_name || '').toLowerCase().includes(q);
+        const matchMember = (p.members || []).some(m => (m.username || '').toLowerCase().includes(q));
+        if (!matchName && !matchCode && !matchDesc && !matchManager && !matchMember) return false;
+      }
+      return true;
+    });
+  }, [projects, selectedProjectId, selectedArea, selectedStatus, searchQuery]);
 
   // Gantt Timeline Dates Calculation (with Month grouping)
   const timelineData = useMemo(() => {
@@ -762,7 +784,7 @@ export default function ProjectManagerTab({
       </div>
 
       {/* VIEW 1: GANTT CHART TIMELINE */}
-      {(currentSubTab === 'gantt_timeline' || !currentSubTab) && (
+      {isGanttTimelineView && (
         <div className="glass-card rounded-3xl p-5 shadow-lg border border-white/80 space-y-4">
           
           <div className="flex items-center justify-between pb-3 border-b border-slate-200/80">
@@ -994,10 +1016,22 @@ export default function ProjectManagerTab({
       )}
 
       {/* VIEW 2: PROJECTS & TASKS CARDS */}
-      {currentSubTab === 'projects_list' && (
+      {isProjectListView && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {projects.map(proj => (
+          {filteredProjects.length === 0 ? (
+            <div className="py-16 text-center text-slate-400 space-y-3 glass-card rounded-3xl p-8 border border-white/80">
+              <FolderKanban className="w-10 h-10 mx-auto text-slate-300" />
+              <p className="text-xs font-semibold">No matching projects found for the selected filter criteria.</p>
+              <button
+                onClick={handleResetFilters}
+                className="px-4 py-2 rounded-xl btn-orange text-xs font-bold cursor-pointer"
+              >
+                Reset Filters
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {filteredProjects.map(proj => (
               <div
                 key={proj.id}
                 className="glass-card rounded-3xl p-5 shadow-md border border-white/80 space-y-4 hover:shadow-xl transition-all duration-200 relative group flex flex-col justify-between"
@@ -1138,11 +1172,12 @@ export default function ProjectManagerTab({
               </div>
             ))}
           </div>
+          )}
         </div>
       )}
 
       {/* VIEW 3: TASK DELEGATION TABLE */}
-      {currentSubTab === 'my_delegations' && (
+      {isTaskDelegationView && (
         <div className="glass-card rounded-3xl p-5 shadow-lg border border-white/80 space-y-4">
           
           <div className="flex items-center justify-between pb-3 border-b border-slate-200/80">
