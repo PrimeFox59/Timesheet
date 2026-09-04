@@ -40,10 +40,13 @@ export default function UserManagementTab({ usersList, currentUser, onRefreshUse
     'Site Director',
     'Commissioning Lead Advisor',
     'Process Lead Advisor',
+    'Process Specialist',
     'Equipment Expert',
     'Commissioning Engineer',
     'Electrical Advisor',
     'Automation Specialist',
+    'Automation Engineer',
+    'Mechanical Engineer',
     'Member'
   ];
 
@@ -471,6 +474,9 @@ export default function UserManagementTab({ usersList, currentUser, onRefreshUse
                     {availableRoles.map(r => (
                       <option key={r} value={r}>{r}</option>
                     ))}
+                    {!availableRoles.includes(formData.role) && formData.role && (
+                      <option value={formData.role}>{formData.role}</option>
+                    )}
                   </select>
                 </div>
               </div>
@@ -610,6 +616,9 @@ export default function UserManagementTab({ usersList, currentUser, onRefreshUse
                     {availableRoles.map(r => (
                       <option key={r} value={r}>{r}</option>
                     ))}
+                    {!availableRoles.includes(formData.role) && formData.role && (
+                      <option value={formData.role}>{formData.role}</option>
+                    )}
                   </select>
                 </div>
               </div>
