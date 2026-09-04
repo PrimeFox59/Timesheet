@@ -202,6 +202,13 @@ export default function ProfileSettingsModal({ user, onClose, onUpdateUser }: Pr
         onUpdateUser(data.user);
       }
 
+      try {
+        localStorage.setItem('metso_password_has_been_changed', 'true');
+        if (user?.id) {
+          localStorage.setItem('metso_pwd_changed_' + String(user.id).toLowerCase(), 'true');
+        }
+      } catch (e) {}
+
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');

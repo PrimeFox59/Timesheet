@@ -106,7 +106,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `Pengaturan fitur "${key}" berhasil diubah menjadi ${valString}.`,
+      message: `Feature setting "${key}" successfully updated to ${valString}.`,
       settings: settingsMap
     });
   } catch (error: any) {

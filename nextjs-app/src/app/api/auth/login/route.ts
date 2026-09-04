@@ -59,7 +59,8 @@ export async function POST(request: Request) {
         avatar: user.avatar || '',
         face_descriptor: user.face_descriptor || '',
         face_photo: user.face_photo || '',
-        face_registered_at: user.face_registered_at || ''
+        face_registered_at: user.face_registered_at || '',
+        is_default_password: user.password === 'Metso'
       }
     });
 

@@ -23,6 +23,7 @@ import ProfileSettingsModal from '@/components/ProfileSettingsModal';
 import FaceIdLoginModal from '@/components/FaceIdLoginModal';
 import SuperuserTab from '@/components/SuperuserTab';
 import DataCorrectionsTab from '@/components/DataCorrectionsTab';
+import DefaultPasswordNoticeModal from '@/components/DefaultPasswordNoticeModal';
 import { useToast } from '@/components/Toast';
 import { apiUrl } from '@/lib/api';
 import { 
@@ -82,6 +83,7 @@ export default function Home() {
   const [loginId, setLoginId] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
+  const [showPasswordNoticeModal, setShowPasswordNoticeModal] = useState(false);
 
   const [systemSettings, setSystemSettings] = useState<Record<string, boolean | string>>({
     menu_project_manager: true,
@@ -145,6 +147,11 @@ export default function Home() {
       if (savedCat) setActiveCategory(savedCat);
       const savedSub = localStorage.getItem('metso_active_subtab');
       if (savedSub) setActiveSubTab(savedSub);
+
+      const hasChangedPassword = localStorage.getItem('metso_password_has_been_changed') === 'true';
+      if (!hasChangedPassword) {
+        setShowPasswordNoticeModal(true);
+      }
     } catch (e) {}
     setIsInitializing(false);
 
@@ -211,6 +218,11 @@ export default function Home() {
           localStorage.setItem('metso_user_session', JSON.stringify(data.user));
           localStorage.setItem('metso_active_category', 'timesheet');
           localStorage.setItem('metso_active_subtab', 'timesheet_entry');
+          if (data.user.is_default_password === false) {
+            localStorage.setItem('metso_password_has_been_changed', 'true');
+            localStorage.setItem('metso_pwd_changed_' + String(data.user.id).toLowerCase(), 'true');
+            setShowPasswordNoticeModal(false);
+          }
         } catch (e) {}
         toast.success(`Welcome back, ${data.user.username}!`);
       } else {
@@ -829,12 +841,23 @@ export default function Home() {
               localStorage.setItem('metso_user_session', JSON.stringify(loggedInUser));
               localStorage.setItem('metso_active_category', 'timesheet');
               localStorage.setItem('metso_active_subtab', 'timesheet_entry');
+              if (loggedInUser.is_default_password === false) {
+                localStorage.setItem('metso_password_has_been_changed', 'true');
+                localStorage.setItem('metso_pwd_changed_' + String(loggedInUser.id).toLowerCase(), 'true');
+                setShowPasswordNoticeModal(false);
+              }
             } catch (e) {}
             setShowFaceIdModal(false);
             toast.success(`Face ID verified. Welcome, ${loggedInUser.username}!`);
           }}
         />
       )}
+
+      {/* Default Password Alert Notice Modal */}
+      <DefaultPasswordNoticeModal
+        isOpen={showPasswordNoticeModal && !user}
+        onClose={() => setShowPasswordNoticeModal(false)}
+      />
 
       {/* User Profile Settings Modal */}
       {showProfileModal && user && (

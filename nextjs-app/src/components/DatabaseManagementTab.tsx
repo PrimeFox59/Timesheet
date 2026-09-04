@@ -176,9 +176,9 @@ export default function DatabaseManagementTab({ currentUser, onRefreshAll }: Dat
                 📋 Migration Instructions:
               </span>
               <ol className="list-decimal list-inside space-y-1 font-medium text-slate-600">
-                <li>Buka link Google Spreadsheet acuan (Tombol <strong>Open Google Sheet</strong> di atas).</li>
-                <li>Pilih menu <strong>File</strong> &rarr; <strong>Download</strong> &rarr; <strong>Microsoft Excel (.xlsx)</strong>.</li>
-                <li>Upload file <code>.xlsx</code> yang terunduh pada form di bawah dan klik <strong>Run Excel Migration</strong>.</li>
+                <li>Open the master reference Google Spreadsheet (click <strong>Open Google Sheet</strong> above).</li>
+                <li>Go to <strong>File</strong> &rarr; <strong>Download</strong> &rarr; <strong>Microsoft Excel (.xlsx)</strong>.</li>
+                <li>Upload the downloaded <code>.xlsx</code> file in the form below and click <strong>Run Excel Migration</strong>.</li>
               </ol>
             </div>
 
