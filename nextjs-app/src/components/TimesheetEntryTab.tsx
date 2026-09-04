@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Sparkles, CheckCircle2, AlertCircle, RefreshCw, FileSpreadsheet, Download, Lock } from 'lucide-react';
 import { apiUrl } from '@/lib/api';
-import { getWibMonthStr, getWibDateStr, TIMEZONE_WIB } from '@/lib/dateUtils';
+import { getWibMonthStr, getWibDateStr, TIMEZONE_WIB, getTimesheetAllowedDateRange, isTimesheetDateAllowed } from '@/lib/dateUtils';
 import { useToast } from '@/components/Toast';
 
 interface TimesheetEntryTabProps {
@@ -40,10 +40,9 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
     return `${yyyy}-${mm}-${dd}`;
   };
 
-  const minAllowedDate = formatYMD(firstDayOfMonth);
-  const maxAllowedDate = formatYMD(lastDayOfMonth);
+  const { minDate: minAllowedDate, maxDate: maxAllowedDate } = getTimesheetAllowedDateRange();
 
-  // Default date range matching Monday of current week to Sunday of current week (clamped to active month)
+  // Default date range matching Monday of current week to Sunday of current week (clamped to active window)
   const getInitialDates = () => {
     const now = new Date();
     // Monday = 0, Tuesday = 1, ..., Sunday = 6
@@ -52,10 +51,12 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
     let monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOfWeek);
     let sunday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (6 - dayOfWeek));
 
-    // Clamp within current running month for non-superusers (and for initial clean view)
+    // Clamp within current allowed window for non-superusers (and for initial clean view)
     if (!isSuperUser) {
       if (monday < firstDayOfMonth) monday = firstDayOfMonth;
-      if (sunday > lastDayOfMonth) sunday = lastDayOfMonth;
+      const [maxY, maxM, maxD] = maxAllowedDate.split('-').map(Number);
+      const maxAllowedDateObj = new Date(maxY, maxM - 1, maxD);
+      if (sunday > maxAllowedDateObj) sunday = maxAllowedDateObj;
     }
 
     return {
@@ -243,10 +244,9 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
     return `${String(d).padStart(2, '0')}-${months[dateObj.getMonth()]}-${y}`;
   };
 
-  const currentYearMonth = getWibMonthStr(); // Always evaluates to GMT+7 (WIB)
-  const isDateEditable = (dateStr: string) => isSuperUser || dateStr.startsWith(currentYearMonth);
+  const isDateEditable = (dateStr: string) => isSuperUser || (dateStr >= minAllowedDate && dateStr <= maxAllowedDate);
 
-  // Allow selecting any past date for viewing; max date is clamped to current month for non-superusers
+  // Allow selecting any past date for viewing; max date is clamped to active window for non-superusers
   const handleStartDateChange = (val: string) => {
     let finalVal = val;
     if (!isSuperUser && val && val > maxAllowedDate) {
@@ -269,7 +269,7 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
     }
   };
 
-  // Quick action helpers: only apply to editable active month rows
+  // Quick action helpers: only apply to editable active window rows
   const fillAllWorkdays10h = () => {
     setRows(prev => prev.map(r => {
       if (!isDateEditable(r.dateStr)) return r; // preserve past locked rows
@@ -295,10 +295,10 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
     }
 
     // Filter only editable rows for regular users
-    const validRowsToSubmit = isSuperUser ? rows : rows.filter(r => r.dateStr.startsWith(currentYearMonth));
+    const validRowsToSubmit = isSuperUser ? rows : rows.filter(r => isDateEditable(r.dateStr));
 
     if (validRowsToSubmit.length === 0) {
-      toast.warning(`Viewing past records (Read-Only). You can only edit and submit entries for the current active month (${currentMonthName} ${currentYear}).`);
+      toast.warning(`Viewing locked records (Read-Only). You can only edit and submit entries for the active window (${formatDateLabel(minAllowedDate)} to ${formatDateLabel(maxAllowedDate)}).`);
       return;
     }
 
@@ -342,7 +342,7 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
     }
   };
 
-  const editableRowsCount = isSuperUser ? rows.length : rows.filter(r => r.dateStr.startsWith(currentYearMonth)).length;
+  const editableRowsCount = isSuperUser ? rows.length : rows.filter(r => isDateEditable(r.dateStr)).length;
   const lockedRowsCount = rows.length - editableRowsCount;
 
   return (
@@ -378,7 +378,7 @@ export default function TimesheetEntryTab({ user, areasList, systemSettings }: T
                   End Date
                 </span>
                 {!isSuperUser && (
-                  <span className="text-[10px] text-amber-700 font-bold">Max: {lastDayOfMonth.getDate()}/{String(currentMonth + 1).padStart(2, '0')}/{currentYear}</span>
+                  <span className="text-[10px] text-amber-700 font-bold">Max: {formatDateLabel(maxAllowedDate)}</span>
                 )}
               </label>
               <input

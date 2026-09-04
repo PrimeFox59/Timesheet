@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { broadcastRealtimeEvent } from '@/lib/socketBroadcaster';
-import { getWibTimestamp, getWibMonthStr } from '@/lib/dateUtils';
+import { getWibTimestamp, getWibMonthStr, getTimesheetAllowedDateRange, isTimesheetDateAllowed } from '@/lib/dateUtils';
 
 // Cache prepared queries for maximum speed
 const getTimesheetStmt = db.prepare(`
@@ -108,13 +108,13 @@ export async function POST(request: Request) {
       } catch (e) {}
     }
 
-    // If regular user (non-superuser), strictly validate that all entry dates belong to current running month (YYYY-MM in GMT+7 WIB)
+    // If regular user (non-superuser), strictly validate that all entry dates belong to current running month + 1 week of next month (GMT+7 WIB)
     if (!isSuperUser) {
-      const currentYearMonth = getWibMonthStr(); // Always matches Indonesia WIB (YYYY-MM)
+      const { minDate, maxDate } = getTimesheetAllowedDateRange();
       for (const row of entries) {
-        if (!row.date || !String(row.date).startsWith(currentYearMonth)) {
+        if (!row.date || !isTimesheetDateAllowed(row.date)) {
           return NextResponse.json({
-            error: `Timesheet submission is locked to the current active month (${currentYearMonth} WIB). Date '${row.date}' falls outside this period.`
+            error: `Timesheet submission is locked to the active period (${minDate} to ${maxDate} WIB). Date '${row.date}' falls outside this period.`
           }, { status: 400 });
         }
       }
