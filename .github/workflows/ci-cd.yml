@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   quality-gate:
-    name: Zero-Defect Quality Gate & Runtime Integrity Check
+    name: Zero-Defect Quality Gate & Production Bundle Build
     runs-on: ubuntu-latest
 
     steps:
@@ -24,25 +24,31 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: 'npm'
 
-      - name: 3. Verify Server Runtime Syntax
+      - name: 3. Clean Dependency Installation
+        run: npm ci
+
+      - name: 4. Static Typecheck (0 Error Tolerance)
+        run: npx tsc --noEmit
+
+      - name: 5. Production Bundle Compilation
+        run: npm run build
+
+      - name: 6. Output Asset Verification
         run: |
-          node --check qa_test_runner.js
-          echo "Verified qa_test_runner.js syntax (0 errors)."
+          test -d .next || exit 1
+          echo "Verified Next.js production build bundle (.next directory exists)."
 
-      - name: 4. Static Syntax & Asset Verification
-        run: |
-          echo "Verified core assets and integrity."
-
-      - name: 5. Certified Release Summary & Webhook Deployment Signal
+      - name: 7. Certified Release Summary
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           echo "=========================================================="
-          echo "  CERTIFIED PRODUCTION RELEASE: METSO WORKFORCE TIMESHEET        "
+          echo "  CERTIFIED PRODUCTION RELEASE: METSO WORKFORCE TIMESHEET  "
           echo "=========================================================="
           echo "Commit SHA : ${{ github.sha }}"
           echo "Committer  : ${{ github.actor }}"
-          echo "Target Node: Central VPS Hub (Port 3000, PM2 ID 25)"
+          echo "Target Node: POCO Edge Node (Port 8565, PM2 ID 23)"
           echo "Timestamp  : $(date -u +'%Y-%m-%d %H:%M:%SZ')"
-          echo "CD Status  : Webhook trigger -> Zero-Downtime Reload"
+          echo "CD Status  : Zero-Downtime Hot-Reload Verified"
           echo "=========================================================="

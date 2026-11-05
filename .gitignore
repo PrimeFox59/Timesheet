@@ -18,7 +18,7 @@ coverage/
 next-env.d.ts
 
 # Databases & SQLite WAL
-*.db
+*.db*
 *.db-shm
 *.db-wal
 *.sqlite
@@ -57,3 +57,7 @@ nextjs-app/tmp/
 Thumbs.db
 .vscode/
 .idea/
+
+# User uploads & ephemeral chat media
+public/uploads/*
+!public/uploads/.gitkeep
